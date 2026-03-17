@@ -1,0 +1,121 @@
+<?php
+// =====================================================
+// api/stok.php — API endpoint untuk stok
+// Method: GET, POST, PUT
+// =====================================================
+
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+requireLogin();
+
+$method = $_SERVER['REQUEST_METHOD'];
+$user   = currentUser();
+
+// ---- GET — ambil data stok ----------------------------
+if ($method === 'GET') {
+    $cabang_id = isAdmin() ? ($_GET['cabang_id'] ?? null) : $user['cabang_id'];
+    $page      = max(1, (int)($_GET['page']     ?? 1));
+    $per_page  = min(100, max(1, (int)($_GET['per_page'] ?? 25)));
+    $keyword   = trim($_GET['keyword'] ?? '');
+    $paginate  = isset($_GET['paginate']) && $_GET['paginate'] === '1';
+
+    if ($paginate) {
+        // Mode paginasi — untuk tampilan stok cabang
+        $result = getAllStokPaginated($cabang_id, $page, $per_page, $keyword);
+        jsonResponse([
+            'success'    => true,
+            'stok'       => $result['stok'],
+            'cabang'     => getAllCabang(),
+            'bibit'      => getAllBibit(),
+            'ringkasan'  => getRingkasan($cabang_id),
+            'pagination' => $result['pagination'],
+        ]);
+    } else {
+        // Mode normal — ambil semua (untuk dropdown, grafik, dll)
+        jsonResponse([
+            'success'   => true,
+            'stok'      => getAllStok($cabang_id),
+            'cabang'    => getAllCabang(),
+            'bibit'     => getAllBibit(),
+            'ringkasan' => getRingkasan($cabang_id),
+        ]);
+    }
+}
+
+// ---- POST — kurangi stok (karyawan) -------------------
+if ($method === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    $bibit_id  = (int)($body['bibit_id']  ?? 0);
+    $jumlah    = (float)($body['jumlah']  ?? 0);
+    $ket       = clean($body['keterangan'] ?? '');
+    $cabang_id = isAdmin()
+        ? (int)($body['cabang_id'] ?? 0)
+        : (int)$user['cabang_id'];
+
+    if (!$bibit_id || $jumlah <= 0 || !$cabang_id) {
+        jsonResponse(['success' => false, 'message' => 'Data tidak lengkap'], 400);
+    }
+
+    $saat_ini = getStokSaatIni($cabang_id, $bibit_id);
+    if ($jumlah > $saat_ini) {
+        jsonResponse(['success' => false, 'message' => "Stok tidak cukup. Sisa: {$saat_ini}ml"], 400);
+    }
+
+    $jumlah_baru = $saat_ini - $jumlah;
+    $ok = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], 'kurang', $jumlah, $ket);
+
+    jsonResponse([
+        'success' => $ok,
+        'message' => $ok ? 'Stok berhasil dikurangi' : 'Gagal menyimpan',
+        'sisa'    => $jumlah_baru,
+    ]);
+}
+
+// ---- PUT — set / tambah stok (admin) ------------------
+if ($method === 'PUT') {
+    requireAdmin();
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    $cabang_id = (int)($body['cabang_id'] ?? 0);
+    $bibit_id  = (int)($body['bibit_id']  ?? 0);
+    $jumlah    = (float)($body['jumlah']  ?? 0);
+    $tipe      = in_array($body['tipe'] ?? '', ['tambah','set']) ? $body['tipe'] : 'set';
+    $ket       = clean($body['keterangan'] ?? '');
+
+    if (!$cabang_id || !$bibit_id || $jumlah < 0) {
+        jsonResponse(['success' => false, 'message' => 'Data tidak lengkap'], 400);
+    }
+
+    $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+    $jumlah_baru = $tipe === 'tambah' ? $saat_ini + $jumlah : $jumlah;
+    $delta       = $tipe === 'tambah' ? $jumlah : abs($jumlah_baru - $saat_ini);
+
+    $ok = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], $tipe, $delta, $ket);
+
+    jsonResponse([
+        'success' => $ok,
+        'message' => $ok ? 'Stok berhasil diperbarui' : 'Gagal menyimpan',
+        'sisa'    => $jumlah_baru,
+    ]);
+}
+
+// ---- DELETE — hapus bibit/cabang (admin) ---------------
+if ($method === 'DELETE') {
+    requireAdmin();
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $target = $body['target'] ?? '';  // 'bibit' atau 'cabang'
+    $id     = (int)($body['id'] ?? 0);
+
+    if (!$id || !in_array($target, ['bibit', 'cabang'])) {
+        jsonResponse(['success' => false, 'message' => 'Parameter tidak valid'], 400);
+    }
+
+    $db   = getDB();
+    $tbl  = $target === 'bibit' ? 'bibit' : 'cabang';
+    $stmt = $db->prepare("DELETE FROM $tbl WHERE id = ?");
+    $ok   = $stmt->execute([$id]);
+
+    jsonResponse(['success' => $ok]);
+}
