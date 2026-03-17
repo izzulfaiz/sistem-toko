@@ -117,7 +117,10 @@ function renderAdminContent() {
   }
   if (adminActiveTab === "rekap") buildRekapTab(target);
   if (adminActiveTab === "users") buildUsersTab(target);
-  if (adminActiveTab === "produk") target.innerHTML = buildProdukTab();
+  if (adminActiveTab === "produk") {
+    target.innerHTML = buildProdukTab();
+    setTimeout(renderProdukList, 50);
+  }
 }
 
 /* ================================================
@@ -683,17 +686,13 @@ async function deleteUser(id) {
 /* ================================================
    TAB PRODUK
    ================================================ */
-function buildProdukTab() {
-  const bibList = bibitData
-    .map(
-      (b) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border)">
-      <div><span style="font-size:13px">${esc(b.nama)}</span> <span style="font-size:11px;color:var(--text2)">[${esc(b.satuan_dasar || b.satuan || "ml")}]</span></div>
-      <button class="btn btn-sm btn-danger" onclick="deleteProduk('bibit',${b.id})">Hapus</button>
-    </div>`,
-    )
-    .join("");
+let produkKeyword = "";
+let produkPage = 1;
+const PRODUK_PER_PAGE = 25;
 
+function buildProdukTab() {
+  // Render struktur utama — list produk diisi terpisah via renderProdukList()
+  // sehingga input pencarian tidak kehilangan fokus saat mengetik
   const cabList = cabangData
     .map(
       (c) => `
@@ -704,34 +703,196 @@ function buildProdukTab() {
     )
     .join("");
 
-  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-    <button class="btn btn-primary" onclick="openModal('modal-stok');populateStokModal()">+ Distribusi / Edit Stok</button>
-    <button class="btn btn-primary" onclick="openBibitModal()">+ Produk Baru</button>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-    <div class="card"><div class="card-header"><span class="card-title">Daftar Produk</span></div>${bibList}</div>
-    <div class="card"><div class="card-header"><span class="card-title">Daftar Cabang</span>
-      <button class="btn btn-sm" onclick="openModal('modal-cabang')">+ Cabang</button>
-    </div>${cabList}</div>
-  </div>`;
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="openModal('modal-stok');populateStokModal()">+ Distribusi / Edit Stok</button>
+      <button class="btn btn-primary" onclick="openBibitModal()">+ Produk Baru</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" id="produk-card-title">Daftar Produk (${bibitData.length})</span>
+        </div>
+        <div class="produk-search-bar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="produk-search"
+            placeholder="Cari nama produk..."
+            value="${esc(produkKeyword)}"
+            oninput="filterDaftarProduk(this.value)"/>
+        </div>
+        <div id="produk-list-wrap"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Daftar Cabang (${cabangData.length})</span>
+          <button class="btn btn-sm" onclick="openModal('modal-cabang')">+ Cabang</button>
+        </div>
+        ${cabList}
+      </div>
+    </div>`;
 }
 
+// Render HANYA bagian list — tidak menyentuh input search
+function renderProdukList() {
+  const listWrap = $("produk-list-wrap");
+  if (!listWrap) return;
+
+  const filtered = bibitData.filter(
+    (b) =>
+      !produkKeyword ||
+      b.nama.toLowerCase().includes(produkKeyword.toLowerCase()),
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PRODUK_PER_PAGE));
+  if (produkPage > totalPages) produkPage = 1;
+  const start = (produkPage - 1) * PRODUK_PER_PAGE;
+  const paged = filtered.slice(start, start + PRODUK_PER_PAGE);
+
+  // Update judul
+  const titleEl = $("produk-card-title");
+  if (titleEl)
+    titleEl.textContent = produkKeyword
+      ? `Daftar Produk (${filtered.length} hasil)`
+      : `Daftar Produk (${bibitData.length})`;
+
+  const bibList = paged.length
+    ? paged
+        .map(
+          (b) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border)">
+        <div>
+          <span style="font-size:13px;font-weight:500">${esc(b.nama)}</span>
+          <span style="font-size:11px;color:var(--text2);margin-left:5px">[${esc(b.satuan_dasar || b.satuan || "ml")}]</span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduk('bibit',${b.id})">Hapus</button>
+      </div>`,
+        )
+        .join("")
+    : '<div class="empty" style="padding:1.5rem">Produk tidak ditemukan</div>';
+
+  const pagHTML =
+    filtered.length > PRODUK_PER_PAGE
+      ? `
+    <div class="pagination" style="padding-top:10px">
+      <div class="pagination-info">${start + 1}–${Math.min(start + PRODUK_PER_PAGE, filtered.length)} dari ${filtered.length}</div>
+      <div class="pagination-btns">
+        <button class="page-btn" onclick="goProdukPage(${produkPage - 1})" ${produkPage <= 1 ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <span style="font-size:13px;padding:0 8px;color:var(--text2)">${produkPage}/${totalPages}</span>
+        <button class="page-btn" onclick="goProdukPage(${produkPage + 1})" ${produkPage >= totalPages ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>`
+      : "";
+
+  listWrap.innerHTML = bibList + pagHTML;
+}
+
+function filterDaftarProduk(val) {
+  produkKeyword = val || "";
+  produkPage = 1;
+  renderProdukList(); // hanya update list, TIDAK re-render input
+}
+
+function goProdukPage(page) {
+  produkPage = page;
+  renderProdukList();
+}
+
+// ---- Searchable Select untuk Bibit di Modal Stok ----
 function populateStokModal() {
   $("ms-cabang").innerHTML = cabangData
     .map((c) => `<option value="${c.id}">${esc(c.nama)}</option>`)
     .join("");
-  $("ms-bibit").innerHTML = bibitData
-    .map(
-      (b) =>
-        `<option value="${b.id}">${esc(b.nama)} [${esc(b.satuan_dasar || b.satuan || "ml")}]</option>`,
-    )
+  clearSSBibit();
+}
+
+function filterSSBibit() {
+  const q = $("ss-bibit-input")?.value.toLowerCase().trim() || "";
+  const drop = $("ss-bibit-drop");
+  if (!drop) return;
+
+  if (!q) {
+    drop.classList.add("ss-hide");
+    return;
+  }
+
+  const filtered = bibitData.filter((b) => b.nama.toLowerCase().includes(q));
+
+  if (!filtered.length) {
+    drop.innerHTML = '<div class="ss-empty">Produk tidak ditemukan</div>';
+    drop.classList.remove("ss-hide");
+    return;
+  }
+
+  drop.innerHTML = filtered
+    .map((b) => {
+      const sat = b.satuan_dasar || b.satuan || "ml";
+      return `<div class="ss-item" onclick="pilihSSBibit(${b.id})">
+      <span class="ss-item-nama">${esc(b.nama)}</span>
+      <span class="ss-item-badge">${esc(sat)}</span>
+    </div>`;
+    })
     .join("");
+  drop.classList.remove("ss-hide");
+}
+
+function pilihSSBibit(id) {
+  const bibit = bibitData.find((b) => b.id == id);
+  if (!bibit) return;
+
+  // Set hidden input
+  if ($("ms-bibit")) $("ms-bibit").value = id;
+
+  // Tampilkan selected dengan info lengkap
+  const selEl = $("ss-bibit-selected");
+  const selNama = $("ss-bibit-nama");
+  const selMeta = $("ss-bibit-meta");
+  const inputWrap = $("ss-bibit-input")?.closest(".ss-input-wrap");
+
+  if (selEl) selEl.style.display = "flex";
+  if (selNama) selNama.textContent = bibit.nama;
+  if (selMeta)
+    selMeta.textContent =
+      "Satuan: " +
+      (bibit.satuan_dasar || bibit.satuan || "ml") +
+      (bibit.konversi > 1
+        ? "  ·  1 " +
+          bibit.satuan +
+          " = " +
+          bibit.konversi +
+          " " +
+          bibit.satuan_dasar
+        : "");
+  if (inputWrap) inputWrap.style.display = "none";
+
+  // Tutup dropdown & reset input
+  $("ss-bibit-drop")?.classList.add("ss-hide");
+  if ($("ss-bibit-input")) $("ss-bibit-input").value = "";
+
+  // Update satuan info di bawah jumlah
   updateModalSatuan();
-  $("ms-bibit").onchange = updateModalSatuan;
+}
+
+function clearSSBibit() {
+  if ($("ms-bibit")) $("ms-bibit").value = "";
+  if ($("ss-bibit-input")) $("ss-bibit-input").value = "";
+  if ($("ss-bibit-selected")) $("ss-bibit-selected").style.display = "none";
+  if ($("ss-bibit-drop")) $("ss-bibit-drop").classList.add("ss-hide");
+  if ($("ms-satuan-label")) $("ms-satuan-label").textContent = "";
+  if ($("ms-satuan-info")) $("ms-satuan-info").textContent = "";
+  // Tampilkan kembali input wrap
+  const inputWrap = $("ss-bibit-input")?.closest(".ss-input-wrap");
+  if (inputWrap) inputWrap.style.display = "flex";
+  $("ss-bibit-input")?.focus();
 }
 
 function updateModalSatuan() {
-  const bibit = bibitData.find((b) => b.id == $("ms-bibit")?.value);
+  const bibitId = $("ms-bibit")?.value;
+  const bibit = bibitData.find((b) => b.id == bibitId);
   if (!bibit) return;
   const sat = bibit.satuan_dasar || bibit.satuan || "ml";
   const lbl = $("ms-satuan-label");
@@ -747,21 +908,43 @@ function updateModalSatuan() {
 function openEditStok(cabang_id, bibit_id) {
   populateStokModal();
   $("ms-cabang").value = cabang_id;
-  $("ms-bibit").value = bibit_id;
   $("ms-tipe").value = "tambah";
-  $("ms-jumlah").value = $("ms-ket").value = "";
-  updateModalSatuan();
+  $("ms-jumlah").value = "";
+  if ($("ms-ket")) $("ms-ket").value = "";
+
+  // Set bibit via searchable select
+  if (bibit_id) pilihSSBibit(bibit_id);
+
   openModal("modal-stok");
+
+  // Tutup dropdown kalau klik luar
+  setTimeout(() => {
+    document.addEventListener("click", function handler(e) {
+      if (!e.target.closest("#ss-bibit-wrap")) {
+        $("ss-bibit-drop")?.classList.add("ss-hide");
+        document.removeEventListener("click", handler);
+      }
+    });
+  }, 100);
 }
 
 async function saveStokModal() {
+  const bibit_id = parseInt($("ms-bibit")?.value);
+  if (!bibit_id) {
+    alert("Pilih produk terlebih dahulu");
+    return;
+  }
   const body = {
     cabang_id: parseInt($("ms-cabang").value),
-    bibit_id: parseInt($("ms-bibit").value),
+    bibit_id,
     jumlah: parseFloat($("ms-jumlah").value),
     tipe: $("ms-tipe").value,
-    keterangan: $("ms-ket").value,
+    keterangan: $("ms-ket")?.value || "",
   };
+  if (!body.cabang_id || isNaN(body.jumlah)) {
+    alert("Lengkapi semua field");
+    return;
+  }
   try {
     await api(BASE_URL + "/api/stok.php", "PUT", body);
     closeModal("modal-stok");
