@@ -250,7 +250,16 @@ async function hapusLog() {
    TAB LAPORAN
    ================================================ */
 function buildLaporanTab() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = (() => {
+    const d = new Date();
+    return (
+      d.getFullYear() +
+      "-" +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(d.getDate()).padStart(2, "0")
+    );
+  })();
   const cabOpts =
     `<option value="all">Semua Cabang</option>` +
     cabangData
@@ -1091,7 +1100,17 @@ let notaItems = [];
 
 async function initKaryawan() {
   const tglEl = $("riwayat-tgl");
-  if (tglEl) tglEl.value = new Date().toISOString().split("T")[0];
+  if (tglEl)
+    tglEl.value = (() => {
+      const d = new Date();
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    })();
 
   await loadKaryawanData();
 
@@ -1116,13 +1135,14 @@ async function loadKaryawanData() {
    KARYAWAN — TAB SWITCH
    ================================================ */
 function kTab(name) {
-  ["transaksi", "riwayat", "stok", "rekap"].forEach((n) => {
+  ["transaksi", "keluar", "riwayat", "stok", "rekap"].forEach((n) => {
     const el = $("ktab-" + n);
     const btn = $("ktab-btn-" + n);
     if (el) el.style.display = n === name ? "block" : "none";
     if (btn) btn.classList.toggle("active", n === name);
   });
   if (name === "riwayat") loadRiwayat();
+  if (name === "keluar") loadKeluarHariIni();
   if (name === "stok") loadKaryawanStok();
   if (name === "rekap") {
     isiSelectBulanTahun("k-rekap-bulan", "k-rekap-tahun");
@@ -1382,86 +1402,6 @@ async function simpanTransaksi() {
 /* ================================================
    KARYAWAN — RIWAYAT
    ================================================ */
-async function loadRiwayat() {
-  const tgl = $("riwayat-tgl")?.value || new Date().toISOString().split("T")[0];
-  const content = $("riwayat-content");
-  if (!content) return;
-  content.innerHTML = '<div class="loading">Memuat...</div>';
-  try {
-    const res = await api(`${BASE_URL}/api/transaksi.php?tanggal=${tgl}`);
-    const trxs = res.transaksis || [];
-    if (!trxs.length) {
-      content.innerHTML =
-        '<div class="empty">Belum ada transaksi pada tanggal ini</div>';
-      return;
-    }
-
-    const totalOmzet = trxs.reduce((s, t) => s + parseFloat(t.total), 0);
-    const today = new Date().toISOString().split("T")[0];
-    const isToday = tgl === today;
-
-    const cards = trxs
-      .map((t) => {
-        const isBatal = t.kode_nota.startsWith("BATAL-");
-        const items = (t.items || [])
-          .map(
-            (item) =>
-              `<div class="trx-row">
-          <span>${esc(item.bibit_nama)} × ${item.jumlah_jual} ${esc(item.satuan_jual)}</span>
-          <span>Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</span>
-        </div>`,
-          )
-          .join("");
-
-        const batalBtn =
-          !isBatal && isToday
-            ? `<button class="btn btn-sm btn-danger" onclick="konfirmasiBatal(${t.id},'${esc(t.kode_nota)}')" style="margin-top:8px">Batalkan Nota</button>`
-            : "";
-
-        const statusBadge = isBatal
-          ? `<span class="badge" style="background:var(--red-l);color:var(--red)">Dibatalkan</span>`
-          : "";
-
-        return `<div class="trx-card" style="${isBatal ? "opacity:0.6;" : ""}">
-        <div class="trx-head">
-          <div>
-            <div class="trx-kode">${esc(t.kode_nota)} ${statusBadge}</div>
-            <div class="trx-meta">${t.created_at} · ${esc(t.user_nama)}</div>
-          </div>
-          <div class="trx-jumlah" style="${isBatal ? "text-decoration:line-through;color:var(--text2)" : ""}">
-            Rp ${parseFloat(t.total).toLocaleString("id-ID")}
-          </div>
-        </div>
-        <div class="trx-items">${items}</div>
-        ${t.catatan ? `<div style="font-size:11px;color:var(--text2);margin-top:6px">📝 ${esc(t.catatan)}</div>` : ""}
-        ${batalBtn}
-      </div>`;
-      })
-      .join("");
-
-    // Hitung omzet hanya dari yang tidak dibatal
-    const omzetValid = trxs
-      .filter((t) => !t.kode_nota.startsWith("BATAL-"))
-      .reduce((s, t) => s + parseFloat(t.total), 0);
-    const jmlValid = trxs.filter(
-      (t) => !t.kode_nota.startsWith("BATAL-"),
-    ).length;
-    const jmlBatal = trxs.filter((t) =>
-      t.kode_nota.startsWith("BATAL-"),
-    ).length;
-
-    content.innerHTML = `
-      <div class="sum-grid" style="margin-bottom:14px">
-        <div class="sum-card"><div class="sum-val">${jmlValid}</div><div class="sum-lbl">Transaksi Valid</div></div>
-        <div class="sum-card"><div class="sum-val" style="font-size:16px;color:var(--amber)">Rp ${omzetValid.toLocaleString("id-ID")}</div><div class="sum-lbl">Total Omzet</div></div>
-      </div>
-      ${jmlBatal > 0 ? `<div class="alert alert-warn" style="margin-bottom:10px">${jmlBatal} transaksi dibatalkan hari ini</div>` : ""}
-      ${cards}`;
-  } catch (e) {
-    content.innerHTML =
-      '<div class="alert alert-danger">Gagal memuat riwayat</div>';
-  }
-}
 
 async function konfirmasiBatal(id, kodeNota) {
   if (
@@ -1488,16 +1428,36 @@ Aksi ini tidak bisa diurungkan.`)
 }
 
 async function exportPDFKaryawan() {
-  const tgl = $("riwayat-tgl")?.value || new Date().toISOString().split("T")[0];
-  const res = await api(`${BASE_URL}/api/transaksi.php?tanggal=${tgl}`);
-  const trxs = res.transaksis || [];
+  const tgl =
+    $("riwayat-tgl")?.value ||
+    (() => {
+      const d = new Date();
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    })();
   const tglStr = new Date(tgl).toLocaleDateString("id-ID", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const totalOmzet = trxs.reduce((s, t) => s + parseFloat(t.total), 0);
+
+  // Ambil transaksi masuk & pengeluaran sekaligus
+  const [resTrx, resKel] = await Promise.all([
+    api(`${BASE_URL}/api/transaksi.php?tanggal=${tgl}&per_page=200`),
+    api(`${BASE_URL}/api/pengeluaran.php?tanggal=${tgl}&per_page=200`),
+  ]);
+
+  const trxs = resTrx.transaksis || [];
+  const kels = resKel.pengeluaran || [];
+  const totalMasuk = parseFloat(resTrx.total_omzet || 0);
+  const totalKeluar = parseFloat(resKel.total_nominal || 0);
+  const labaBersih = totalMasuk - totalKeluar;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -1505,6 +1465,7 @@ async function exportPDFKaryawan() {
     M = 14;
   let y = 0;
 
+  // Header
   doc.setFillColor(186, 117, 23);
   doc.rect(0, 0, W, 34, "F");
   doc.setFillColor(239, 159, 39);
@@ -1512,10 +1473,10 @@ async function exportPDFKaryawan() {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("Laporan Penjualan Harian", M, 13);
+  doc.text("Laporan Harian — " + (CURRENT_USER.cabang_nama || ""), M, 13);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text((CURRENT_USER.cabang_nama || "") + " — " + tglStr, M, 21);
+  doc.text(tglStr, M, 21);
   doc.text(
     "Karyawan: " +
       CURRENT_USER.nama +
@@ -1526,87 +1487,183 @@ async function exportPDFKaryawan() {
   );
   y = 44;
 
-  const bw = (W - M * 2 - 4) / 2;
-  doc.setFillColor(248, 247, 244);
-  doc.roundedRect(M, y, bw, 18, 2, 2, "F");
-  doc.setTextColor(186, 117, 23);
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text(trxs.length + "", M + bw / 2, y + 9, { align: "center" });
-  doc.setTextColor(136, 135, 128);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.text("Total Transaksi", M + bw / 2, y + 15, { align: "center" });
-
-  doc.setFillColor(248, 247, 244);
-  doc.roundedRect(M + bw + 4, y, bw, 18, 2, 2, "F");
-  doc.setTextColor(186, 117, 23);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(
-    "Rp " + totalOmzet.toLocaleString("id-ID"),
-    M + bw + 4 + bw / 2,
-    y + 9,
-    { align: "center" },
-  );
-  doc.setTextColor(136, 135, 128);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.text("Total Omzet", M + bw + 4 + bw / 2, y + 15, { align: "center" });
+  // Ringkasan 3 kotak
+  const bw = (W - M * 2 - 8) / 3;
+  const boxes = [
+    {
+      label: "Total Masuk",
+      val: "Rp " + totalMasuk.toLocaleString("id-ID"),
+      color: [15, 110, 86],
+    },
+    {
+      label: "Total Keluar",
+      val: "Rp " + totalKeluar.toLocaleString("id-ID"),
+      color: [163, 45, 45],
+    },
+    {
+      label: labaBersih >= 0 ? "Laba Bersih" : "Rugi Bersih",
+      val: "Rp " + Math.abs(labaBersih).toLocaleString("id-ID"),
+      color: labaBersih >= 0 ? [15, 110, 86] : [163, 45, 45],
+    },
+  ];
+  boxes.forEach((b, i) => {
+    const bx = M + i * (bw + 4);
+    doc.setFillColor(248, 247, 244);
+    doc.roundedRect(bx, y, bw, 18, 2, 2, "F");
+    if (i === 2) {
+      doc.setFillColor(
+        labaBersih >= 0 ? 225 : 255,
+        labaBersih >= 0 ? 245 : 235,
+        labaBersih >= 0 ? 238 : 235,
+      );
+      doc.roundedRect(bx, y, bw, 18, 2, 2, "F");
+    }
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...b.color);
+    doc.text(b.val, bx + bw / 2, y + 9, { align: "center" });
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(136, 135, 128);
+    doc.text(b.label, bx + bw / 2, y + 15, { align: "center" });
+  });
   y += 26;
 
+  // Tabel transaksi masuk
+  doc.setTextColor(15, 110, 86);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("TRANSAKSI MASUK", M, y);
+  y += 3;
+
   const allRows = [];
-  trxs.forEach((t) => {
-    (t.items || []).forEach((item, i) => {
+  trxs
+    .filter((t) => !t.kode_nota.startsWith("BATAL-"))
+    .forEach((t) => {
+      (t.items || []).forEach((item, i) => {
+        allRows.push([
+          i === 0 ? t.kode_nota : "",
+          i === 0 ? (t.created_at.split(" ")[1] || "").substring(0, 5) : "",
+          item.bibit_nama,
+          `${item.jumlah_jual} ${item.satuan_jual}`,
+          "Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID"),
+          "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID"),
+        ]);
+      });
       allRows.push([
-        i === 0 ? t.kode_nota : "",
-        i === 0 ? (t.created_at.split(" ")[1] || "").substring(0, 5) : "",
-        item.bibit_nama,
-        `${item.jumlah_jual} ${item.satuan_jual}`,
-        "Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID"),
-        "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID"),
+        "",
+        "",
+        "",
+        "",
+        "TOTAL NOTA",
+        "Rp " + parseFloat(t.total).toLocaleString("id-ID"),
       ]);
     });
-    allRows.push([
-      "",
-      "",
-      "",
-      "",
-      "TOTAL",
-      "Rp " + parseFloat(t.total).toLocaleString("id-ID"),
-    ]);
-  });
 
   doc.autoTable({
     startY: y,
     margin: { left: M, right: M },
     head: [["No. Nota", "Jam", "Produk", "Jumlah", "Harga", "Subtotal"]],
-    body: allRows,
+    body: allRows.length
+      ? allRows
+      : [["—", "—", "Tidak ada transaksi masuk", "—", "—", "—"]],
     styles: {
       fontSize: 8,
       cellPadding: 3,
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: {
-      fillColor: [186, 117, 23],
-      textColor: 255,
-      fontStyle: "bold",
-    },
+    headStyles: { fillColor: [15, 110, 86], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [250, 249, 248] },
     columnStyles: {
       4: { halign: "right" },
       5: { halign: "right", fontStyle: "bold" },
     },
     didParseCell(d) {
-      if (d.section === "body" && d.row.raw[4] === "TOTAL") {
-        d.cell.styles.fillColor = [250, 237, 218];
-        d.cell.styles.textColor = [186, 117, 23];
+      if (d.section === "body" && d.row.raw[4] === "TOTAL NOTA") {
+        d.cell.styles.fillColor = [225, 245, 238];
+        d.cell.styles.textColor = [15, 110, 86];
         d.cell.styles.fontStyle = "bold";
       }
     },
   });
 
+  y = doc.lastAutoTable.finalY + 8;
+  if (y > 240) {
+    doc.addPage();
+    y = 14;
+  }
+
+  // Tabel pengeluaran
+  doc.setTextColor(163, 45, 45);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("TRANSAKSI KELUAR (PENGELUARAN)", M, y);
+  y += 3;
+
+  const kelRows = kels.length
+    ? kels.map((p) => [
+        (p.created_at.split(" ")[1] || "").substring(0, 5),
+        p.nama_item,
+        p.keterangan || "—",
+        "Rp " + parseFloat(p.nominal).toLocaleString("id-ID"),
+      ])
+    : [["—", "Tidak ada pengeluaran", "—", "—"]];
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: M, right: M },
+    head: [["Jam", "Nama Item", "Keterangan", "Nominal"]],
+    body: kelRows,
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [229, 227, 220],
+      lineWidth: 0.2,
+    },
+    headStyles: { fillColor: [163, 45, 45], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [255, 249, 249] },
+    columnStyles: {
+      3: { halign: "right", fontStyle: "bold", textColor: [163, 45, 45] },
+    },
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+  if (y > 260) {
+    doc.addPage();
+    y = 14;
+  }
+
+  // Ringkasan akhir
+  doc.setFillColor(248, 247, 244);
+  doc.roundedRect(M, y, W - M * 2, 22, 3, 3, "F");
+  const labColor = labaBersih >= 0 ? [15, 110, 86] : [163, 45, 45];
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(136, 135, 128);
+  doc.text(
+    "Total Masuk: Rp " + totalMasuk.toLocaleString("id-ID"),
+    M + 4,
+    y + 8,
+  );
+  doc.text(
+    "Total Keluar: Rp " + totalKeluar.toLocaleString("id-ID"),
+    M + 4,
+    y + 15,
+  );
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...labColor);
+  doc.text(
+    (labaBersih >= 0 ? "Laba" : "Rugi") +
+      " Bersih: Rp " +
+      Math.abs(labaBersih).toLocaleString("id-ID"),
+    W - M,
+    y + 12,
+    { align: "right" },
+  );
+
+  // Footer
   const total = doc.internal.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
@@ -1615,54 +1672,106 @@ async function exportPDFKaryawan() {
     doc.setTextColor(136, 135, 128);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text("Parfum Stock System", M, 293);
+    doc.text("Parfum Stock System — Laporan Harian", M, 293);
     doc.text("Hal " + i + "/" + total, W - M, 293, { align: "right" });
   }
-  doc.save(`penjualan-${CURRENT_USER.cabang_nama || "cabang"}-${tgl}.pdf`);
+
+  doc.save(`laporan-harian-${CURRENT_USER.cabang_nama || "cabang"}-${tgl}.pdf`);
 }
 
-/* ================================================
-   KARYAWAN — CEK STOK
-   ================================================ */
+let kStokPage = 1;
+let kStokKeyword = "";
+const K_STOK_PER_PAGE = 25;
+
 async function loadKaryawanStok() {
-  try {
-    await loadKaryawanData();
-    const myStok = stokData.filter(
-      (r) => r.cabang_id == CURRENT_USER.cabang_id,
-    );
-    const tbody = $("k-stok-tbody");
-    if (!tbody) return;
-    const rows = myStok
-      .map((r) => {
-        const v = parseFloat(r.jumlah);
-        const sat = r.satuan_dasar || r.satuan || "ml";
-        const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-        const warn = isMl ? STOK_WARNING : 5;
-        const crit = isMl ? STOK_CRITICAL : 2;
-        const cls = v <= crit ? "crit" : v <= warn ? "low" : "ok";
-        return `<tr>
-        <td>${esc(r.bibit_nama)}</td>
-        <td><strong style="color:${v <= warn ? "var(--red)" : "var(--teal)"}">${v}</strong></td>
-        <td>${esc(sat)}</td>
-        <td><span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span></td>
-      </tr>`;
-      })
-      .join("");
-    tbody.innerHTML =
-      rows || '<tr><td colspan="4" class="empty">Tidak ada data stok</td></tr>';
-  } catch (e) {
-    const tbody = $("k-stok-tbody");
-    if (tbody)
-      tbody.innerHTML =
-        '<tr><td colspan="4" class="alert alert-danger">Gagal memuat stok</td></tr>';
-  }
+  kStokPage = 1;
+  kStokKeyword = $("stok-search")?.value || "";
+  await loadKaryawanData();
+  renderKaryawanStokPage();
 }
 
-function filterStokTable() {
-  const q = $("stok-search")?.value.toLowerCase() || "";
-  document.querySelectorAll("#k-stok-tbody tr").forEach((row) => {
-    row.style.display = row.textContent.toLowerCase().includes(q) ? "" : "none";
-  });
+function filterKaryawanStok(val) {
+  kStokKeyword = val || "";
+  kStokPage = 1;
+  renderKaryawanStokPage(); // hanya update list, tidak re-render input
+}
+
+function goKStokPage(page) {
+  kStokPage = page;
+  renderKaryawanStokPage();
+}
+
+function renderKaryawanStokPage() {
+  const tbody = $("k-stok-tbody");
+  const pagEl = $("k-stok-pagination");
+  const titleEl = $("k-stok-title");
+  if (!tbody) return;
+
+  // Filter data
+  const myStok = stokData.filter((r) => r.cabang_id == CURRENT_USER.cabang_id);
+  const filtered = kStokKeyword
+    ? myStok.filter((r) =>
+        r.bibit_nama.toLowerCase().includes(kStokKeyword.toLowerCase()),
+      )
+    : myStok;
+
+  // Update judul
+  if (titleEl)
+    titleEl.textContent = kStokKeyword
+      ? `Stok ${CURRENT_USER.cabang_nama || ""} (${filtered.length} hasil)`
+      : `Stok ${CURRENT_USER.cabang_nama || ""} (${myStok.length} produk)`;
+
+  // Pagination
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / K_STOK_PER_PAGE));
+  if (kStokPage > totalPages) kStokPage = 1;
+  const start = (kStokPage - 1) * K_STOK_PER_PAGE;
+  const paged = filtered.slice(start, start + K_STOK_PER_PAGE);
+
+  if (!paged.length) {
+    tbody.innerHTML =
+      '<tr><td colspan="4" class="empty">Tidak ada produk ditemukan</td></tr>';
+    if (pagEl) pagEl.innerHTML = "";
+    return;
+  }
+
+  const rows = paged
+    .map((r) => {
+      const v = parseFloat(r.jumlah);
+      const sat = r.satuan_dasar || r.satuan || "ml";
+      const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+      const warn = isMl ? STOK_WARNING : 5;
+      const crit = isMl ? STOK_CRITICAL : 2;
+      const cls = v <= crit ? "crit" : v <= warn ? "low" : "ok";
+      return `<tr>
+      <td>${esc(r.bibit_nama)}</td>
+      <td><strong style="color:${v <= warn ? "var(--red)" : "var(--teal)"}">${v}</strong></td>
+      <td>${esc(sat)}</td>
+      <td><span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span></td>
+    </tr>`;
+    })
+    .join("");
+  tbody.innerHTML = rows;
+
+  // Render pagination
+  if (pagEl) {
+    pagEl.innerHTML =
+      total > K_STOK_PER_PAGE
+        ? buildPaginationHTML(
+            {
+              total,
+              per_page: K_STOK_PER_PAGE,
+              current: kStokPage,
+              total_pages: totalPages,
+              has_prev: kStokPage > 1,
+              has_next: kStokPage < totalPages,
+              from: start + 1,
+              to: Math.min(start + K_STOK_PER_PAGE, total),
+            },
+            "goKStokPage",
+          )
+        : "";
+  }
 }
 
 /* ================================================
@@ -1951,22 +2060,34 @@ function buildRekapHTML(data, showCabangBreakdown) {
   ];
 
   // Summary cards
+  const laba = parseFloat(data.laba_bersih || data.total_omzet || 0);
+  const totalKeluar = parseFloat(data.total_keluar || 0);
+  const labaColor = laba >= 0 ? "var(--teal)" : "var(--red)";
+
   const summaryHTML = `
     <div class="rekap-summary">
       <div class="rekap-sum-card">
-        <div class="rekap-sum-val">Rp ${parseFloat(data.total_omzet || 0).toLocaleString("id-ID")}</div>
-        <div class="rekap-sum-lbl">Total Omzet Bulan Ini</div>
+        <div class="rekap-sum-val" style="color:var(--teal)">Rp ${parseFloat(data.total_omzet || 0).toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-lbl">Total Pemasukan</div>
+      </div>
+      <div class="rekap-sum-card">
+        <div class="rekap-sum-val" style="color:var(--red)">Rp ${totalKeluar.toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-lbl">Total Pengeluaran</div>
+      </div>
+      <div class="rekap-sum-card" style="border:1.5px solid ${laba >= 0 ? "#9fe1cb" : "#f7c1c1"}">
+        <div class="rekap-sum-val" style="color:${labaColor}">Rp ${laba.toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-lbl">${laba >= 0 ? "Laba Bersih" : "Rugi Bersih"}</div>
       </div>
       <div class="rekap-sum-card">
         <div class="rekap-sum-val">${data.total_transaksi || 0}</div>
-        <div class="rekap-sum-lbl">Total Transaksi</div>
+        <div class="rekap-sum-lbl">Total Transaksi Masuk</div>
       </div>
       <div class="rekap-sum-card">
         <div class="rekap-sum-val">${data.hari_aktif || 0} hari</div>
         <div class="rekap-sum-lbl">Hari Aktif Jualan</div>
       </div>
       <div class="rekap-sum-card">
-        <div class="rekap-sum-val">Rp ${parseFloat(data.rata_omzet_per_hari || 0).toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-val" style="font-size:15px">Rp ${parseFloat(data.rata_omzet_per_hari || 0).toLocaleString("id-ID")}</div>
         <div class="rekap-sum-lbl">Rata-rata / Hari Aktif</div>
       </div>
     </div>`;
@@ -2571,7 +2692,18 @@ async function hapusLog() {
 let riwayatPage = 1;
 
 async function loadRiwayat() {
-  const tgl = $("riwayat-tgl")?.value || new Date().toISOString().split("T")[0];
+  const tgl =
+    $("riwayat-tgl")?.value ||
+    (() => {
+      const d = new Date();
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    })();
   riwayatPage = 1;
   await loadRiwayatPage(riwayatPage, tgl);
 }
@@ -2579,33 +2711,77 @@ async function loadRiwayat() {
 async function loadRiwayatPage(page, tgl) {
   riwayatPage = page;
   const tanggal =
-    tgl || $("riwayat-tgl")?.value || new Date().toISOString().split("T")[0];
-  const content = $("riwayat-content");
-  if (!content) return;
-  content.innerHTML = '<div class="loading">Memuat...</div>';
+    tgl ||
+    $("riwayat-tgl")?.value ||
+    (() => {
+      const d = new Date();
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    })();
+  const contentEl = $("riwayat-content");
+  if (!contentEl) return;
+  contentEl.innerHTML = '<div class="loading">Memuat...</div>';
 
   try {
-    const url = `${BASE_URL}/api/transaksi.php?tanggal=${tanggal}&page=${page}&per_page=${PER_PAGE}`;
-    const res = await api(url);
-    const trxs = res.transaksis || [];
-    const pag = res.pagination;
-    const today = new Date().toISOString().split("T")[0];
+    // Ambil transaksi masuk & pengeluaran sekaligus
+    const [resTrx, resKel] = await Promise.all([
+      api(
+        `${BASE_URL}/api/transaksi.php?tanggal=${tanggal}&page=${page}&per_page=${PER_PAGE}`,
+      ),
+      api(`${BASE_URL}/api/pengeluaran.php?tanggal=${tanggal}`),
+    ]);
+
+    const trxs = resTrx.transaksis || [];
+    const kels = resKel.pengeluaran || [];
+    const pag = resTrx.pagination;
+    // Gunakan local date (bukan UTC) agar tidak beda hari di timezone WIB
+    const nowLocal = new Date();
+    const today =
+      nowLocal.getFullYear() +
+      "-" +
+      String(nowLocal.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(nowLocal.getDate()).padStart(2, "0");
     const isToday = tanggal === today;
 
-    if (!trxs.length) {
-      content.innerHTML =
-        '<div class="empty">Belum ada transaksi pada tanggal ini</div>';
-      return;
-    }
-
-    const omzetValid = trxs
-      .filter((t) => !t.kode_nota.startsWith("BATAL-"))
-      .reduce((s, t) => s + parseFloat(t.total), 0);
+    // Hitung ringkasan
+    const totalMasuk = parseFloat(resTrx.total_omzet || 0);
+    const totalKeluar = parseFloat(resKel.total_nominal || 0);
+    const labaBersih = totalMasuk - totalKeluar;
     const jmlBatal = trxs.filter((t) =>
       t.kode_nota.startsWith("BATAL-"),
     ).length;
 
-    const cards = trxs
+    // Ringkasan cards (hanya halaman 1)
+    const summaryHTML =
+      page === 1
+        ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+        <div class="sum-card">
+          <div class="sum-val" style="color:var(--teal);font-size:15px">Rp ${totalMasuk.toLocaleString("id-ID")}</div>
+          <div class="sum-lbl">Total Masuk</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-val" style="color:var(--red);font-size:15px">Rp ${totalKeluar.toLocaleString("id-ID")}</div>
+          <div class="sum-lbl">Total Keluar</div>
+        </div>
+        <div class="sum-card" style="border:1.5px solid ${labaBersih >= 0 ? "#9fe1cb" : "#f7c1c1"}">
+          <div class="sum-val" style="color:${labaBersih >= 0 ? "var(--teal)" : "var(--red)"};font-size:15px">
+            Rp ${labaBersih.toLocaleString("id-ID")}
+          </div>
+          <div class="sum-lbl">${labaBersih >= 0 ? "Laba Bersih" : "Rugi"}</div>
+        </div>
+      </div>
+      ${jmlBatal > 0 ? `<div class="alert alert-warn" style="margin-bottom:10px">${jmlBatal} transaksi dibatalkan</div>` : ""}`
+        : "";
+
+    // Cards transaksi masuk
+    const trxCards = trxs
       .map((t) => {
         const isBatal = t.kode_nota.startsWith("BATAL-");
         const items = (t.items || [])
@@ -2628,11 +2804,13 @@ async function loadRiwayatPage(page, tgl) {
         return `<div class="trx-card" style="${isBatal ? "opacity:0.6;" : ""}">
         <div class="trx-head">
           <div>
-            <div class="trx-kode">${esc(t.kode_nota)} ${statusBadge}</div>
+            <div class="trx-kode">${esc(t.kode_nota)} ${statusBadge}
+              <span class="badge" style="background:var(--teal-l);color:var(--teal);margin-left:4px">Masuk</span>
+            </div>
             <div class="trx-meta">${t.created_at} · ${esc(t.user_nama)}</div>
           </div>
-          <div class="trx-jumlah" style="${isBatal ? "text-decoration:line-through;color:var(--text2)" : ""}">
-            Rp ${parseFloat(t.total).toLocaleString("id-ID")}
+          <div class="trx-jumlah" style="${isBatal ? "text-decoration:line-through;color:var(--text2)" : "color:var(--teal)"}">
+            + Rp ${parseFloat(t.total).toLocaleString("id-ID")}
           </div>
         </div>
         <div class="trx-items">${items}</div>
@@ -2642,23 +2820,56 @@ async function loadRiwayatPage(page, tgl) {
       })
       .join("");
 
-    // Summary hanya di halaman pertama
-    const summaryHTML =
-      page === 1
+    // Cards pengeluaran — hanya tampil di halaman 1
+    const kelCards =
+      page === 1 && kels.length
         ? `
-      <div class="sum-grid" style="margin-bottom:14px">
-        <div class="sum-card"><div class="sum-val">${pag?.total || 0}</div><div class="sum-lbl">Total Transaksi</div></div>
-        <div class="sum-card"><div class="sum-val" style="font-size:16px;color:var(--amber)">Rp ${parseFloat(res.total_omzet || 0).toLocaleString("id-ID")}</div><div class="sum-lbl">Total Omzet</div></div>
-      </div>
-      ${jmlBatal > 0 ? `<div class="alert alert-warn" style="margin-bottom:10px">${jmlBatal} transaksi dibatalkan</div>` : ""}`
+      <div style="margin-top:4px;margin-bottom:4px">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 0 6px">
+          Pengeluaran
+        </div>
+        ${kels
+          .map((p) => {
+            const jamKel = p.created_at.split(" ")[1]?.substring(0, 5) || "";
+            const hapusBtn = isToday
+              ? `<button class="btn btn-sm btn-danger" style="margin-top:4px;font-size:11px"
+                onclick="hapusKeluar(${p.id},'${esc(p.nama_item)}')">Hapus</button>`
+              : "";
+            return `<div class="trx-card" style="border-left:3px solid var(--red)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
+                <div class="trx-kode" style="word-break:break-word">${esc(p.nama_item)}
+                  <span class="badge" style="background:var(--red-l);color:var(--red);margin-left:4px">Keluar</span>
+                </div>
+                <div class="trx-meta">${jamKel} · ${esc(p.user_nama)}${p.keterangan ? " · " + esc(p.keterangan) : ""}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <div style="font-size:14px;font-weight:700;color:var(--red);white-space:nowrap">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</div>
+                ${hapusBtn}
+              </div>
+            </div>
+          </div>`;
+          })
+          .join("")}
+      </div>`
         : "";
 
-    content.innerHTML =
+    const emptyMsg =
+      !trxs.length && !kels.length
+        ? '<div class="empty">Belum ada aktivitas pada tanggal ini</div>'
+        : "";
+
+    contentEl.innerHTML =
       summaryHTML +
-      cards +
-      buildPaginationHTML(pag, `(p) => loadRiwayatPage(p, '${tanggal}')`);
+      (trxs.length
+        ? `<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:4px 0 8px">Transaksi Masuk</div>`
+        : "") +
+      trxCards +
+      buildPaginationHTML(pag, `(p) => loadRiwayatPage(p, '${tanggal}')`) +
+      kelCards +
+      emptyMsg;
   } catch (e) {
-    content.innerHTML =
+    contentEl.innerHTML =
       '<div class="alert alert-danger">Gagal memuat riwayat</div>';
   }
 }
@@ -2797,5 +3008,149 @@ async function loadStokPage(page) {
   } catch (e) {
     content.innerHTML =
       '<div class="alert alert-danger">Gagal memuat stok</div>';
+  }
+}
+
+/* ================================================
+   TRANSAKSI KELUAR (PENGELUARAN)
+   ================================================ */
+
+function previewKeluar() {
+  const nominal = parseFloat($("kel-nominal")?.value) || 0;
+  const preview = $("kel-preview");
+  if (preview) preview.textContent = "Rp " + nominal.toLocaleString("id-ID");
+}
+
+async function simpanKeluar() {
+  const nama_item = $("kel-nama")?.value.trim();
+  const nominal = parseFloat($("kel-nominal")?.value) || 0;
+  const keterangan = $("kel-ket")?.value.trim() || "";
+  const msgEl = $("kel-msg");
+
+  if (!nama_item) {
+    showKMsg("Nama item wajib diisi", "danger");
+    return;
+  }
+  if (nominal <= 0) {
+    showKMsg("Nominal harus lebih dari 0", "danger");
+    return;
+  }
+
+  try {
+    const res = await api(BASE_URL + "/api/pengeluaran.php", "POST", {
+      nama_item,
+      nominal,
+      keterangan,
+    });
+    if (res.success) {
+      // Reset form
+      if ($("kel-nama")) $("kel-nama").value = "";
+      if ($("kel-nominal")) $("kel-nominal").value = "";
+      if ($("kel-ket")) $("kel-ket").value = "";
+      if ($("kel-preview")) $("kel-preview").textContent = "Rp 0";
+
+      showKMsg(
+        "Pengeluaran berhasil dicatat: Rp " + nominal.toLocaleString("id-ID"),
+        "ok",
+      );
+      await loadKeluarHariIni();
+    } else {
+      showKMsg(res.message || "Gagal menyimpan", "danger");
+    }
+  } catch (e) {
+    showKMsg("Error: " + e.message, "danger");
+  }
+}
+
+function showKMsg(msg, type) {
+  const el = $("kel-msg");
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}" style="margin-bottom:10px">${msg}</div>`;
+  setTimeout(() => {
+    if (el) el.innerHTML = "";
+  }, 4000);
+}
+
+async function loadKeluarHariIni() {
+  const listEl = $("kel-list");
+  if (!listEl) return;
+
+  const today = (() => {
+    const d = new Date();
+    return (
+      d.getFullYear() +
+      "-" +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(d.getDate()).padStart(2, "0")
+    );
+  })();
+  try {
+    const res = await api(`${BASE_URL}/api/pengeluaran.php?tanggal=${today}`);
+    const data = res.pengeluaran || [];
+    const total = res.total_nominal || 0;
+
+    if (!data.length) {
+      listEl.innerHTML =
+        '<div class="empty" style="padding:1.5rem">Belum ada pengeluaran hari ini</div>';
+      return;
+    }
+
+    const rows = data
+      .map(
+        (p) => `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border);gap:10px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${esc(p.nama_item)}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">
+            ${p.created_at.split(" ")[1]?.substring(0, 5) || ""} · ${esc(p.user_nama)}
+            ${p.keterangan ? " · " + esc(p.keterangan) : ""}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:700;color:var(--red)">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</div>
+          <button class="btn btn-sm btn-danger" style="margin-top:4px;font-size:11px"
+            onclick="hapusKeluar(${p.id})">Hapus</button>
+        </div>
+      </div>`,
+      )
+      .join("");
+
+    listEl.innerHTML = `
+      ${rows}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;margin-top:4px;border-top:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Total Pengeluaran</span>
+        <span style="font-size:16px;font-weight:700;color:var(--red)">Rp ${total.toLocaleString("id-ID")}</span>
+      </div>`;
+  } catch (e) {
+    listEl.innerHTML =
+      '<div class="alert alert-danger">Gagal memuat data</div>';
+  }
+}
+
+async function hapusKeluar(id, namaItem) {
+  const konfirm = namaItem
+    ? `Hapus pengeluaran "${namaItem}"?`
+    : "Hapus catatan pengeluaran ini?";
+  if (!confirm(konfirm)) return;
+  try {
+    const res = await api(BASE_URL + "/api/pengeluaran.php", "DELETE", { id });
+    if (res.success) {
+      // Refresh kedua tampilan — tab keluar & tab riwayat
+      await loadKeluarHariIni();
+      const _now = new Date();
+      const _today =
+        _now.getFullYear() +
+        "-" +
+        String(_now.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(_now.getDate()).padStart(2, "0");
+      const tgl = $("riwayat-tgl")?.value || _today;
+      await loadRiwayatPage(riwayatPage, tgl);
+    } else {
+      alert("Gagal menghapus");
+    }
+  } catch (e) {
+    alert("Error: " + e.message);
   }
 }
