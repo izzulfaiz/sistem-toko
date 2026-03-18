@@ -1345,7 +1345,7 @@ function renderNota() {
     <div class="nota-item">
       <div class="nota-item-info">
         <div class="nota-item-nama">${esc(item.bibit_nama)}</div>
-        <div class="nota-item-sub">${item.jumlah_jual} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
+        <div class="nota-item-sub">${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
       </div>
       <div class="nota-item-price">
         <div class="nota-item-total">Rp ${item.subtotal.toLocaleString("id-ID")}</div>
@@ -1545,7 +1545,7 @@ async function exportPDFKaryawan() {
           i === 0 ? t.kode_nota : "",
           i === 0 ? (t.created_at.split(" ")[1] || "").substring(0, 5) : "",
           item.bibit_nama,
-          `${item.jumlah_jual} ${item.satuan_jual}`,
+          `${parseFloat(item.jumlah_jual)} ${item.satuan_jual}`,
           "Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID"),
           "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID"),
         ]);
