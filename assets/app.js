@@ -5,7 +5,7 @@
 const STOK_WARNING = 70;
 const STOK_CRITICAL = 40;
 const STOK_MAX = 1000;
-const TOKO_NAMA = "Mekar Wangi System";
+const TOKO_NAMA = "Mekar Wangi";
 
 const BASE_URL = (() => {
   const p = window.location.pathname;
