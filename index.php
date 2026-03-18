@@ -68,14 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
     </form>
-
-    <!-- HAPUS BAGIAN INI sebelum digunakan sungguhan -->
-    <div class="demo-hint">
-      <p>Demo login:</p>
-      <p>Admin &nbsp;— <code>admin</code> / <code>password</code></p>
-      <p>Karyawan — <code>kar1</code> s/d <code>kar7</code> / <code>password</code></p>
-    </div>
-
   </div>
 </div>
 
