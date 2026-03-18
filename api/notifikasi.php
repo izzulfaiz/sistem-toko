@@ -20,8 +20,8 @@ if ($method === 'GET') {
         $v      = (float)$s['jumlah'];
         $sat    = $s['satuan_dasar'] ?: ($s['satuan'] ?: 'ml');
         $isMl   = in_array($sat, ['ml','liter','gram','kg']);
-        $batas_kritis = $isMl ? 100 : 2;
-        $batas_rendah = $isMl ? 200 : 5;
+        $batas_kritis = $isMl ? 40 : 2;
+        $batas_rendah = $isMl ? 70 : 5;
 
         if ($v <= $batas_kritis) $tipe = 'kritis';
         elseif ($v <= $batas_rendah) $tipe = 'rendah';

@@ -1,0 +1,17 @@
+# Konfigurasi database
+config/database.php
+
+# File sensitif
+.env
+
+# XAMPP/PHP cache
+*.log
+/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp

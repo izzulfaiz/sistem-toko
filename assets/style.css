@@ -22,21 +22,23 @@ body {
 
 /* 2. WARNA TEMA — edit di sini */
 :root {
-  --amber: #ba7517;
-  --amber-l: #faeeda;
-  --amber-m: #ef9f27;
-  --teal: #0f6e56;
-  --teal-l: #e1f5ee;
-  --teal-m: #1d9e75;
-  --red: #a32d2d;
-  --red-l: #fcebeb;
+  /* Tema Biru Pink Soft — Mekar Wangi */
+  --amber: #5b6ebf;
+  --amber-l: #eef0fb;
+  --amber-m: #7b8fd4;
+  --teal: #c2185b;
+  --teal-l: #fce4ec;
+  --teal-m: #e91e8c;
+  --red: #b03060;
+  --red-l: #fdeef4;
   --green: #3b6d11;
   --green-l: #eaf3de;
-  --border: #e5e3dc;
+  --blue: #3d52a0;
+  --border: #e2e4f0;
   --bg: #fff;
-  --bg2: #f8f7f4;
-  --text: #1a1a18;
-  --text2: #888780;
+  --bg2: #f7f8fc;
+  --text: #1a1a2e;
+  --text2: #7c7f9e;
 }
 
 /* 3. LOGIN */
@@ -73,18 +75,13 @@ body {
   align-items: center;
   justify-content: center;
   margin-bottom: 10px;
+  overflow: hidden;
 }
-/* .login-icon svg {
+.login-icon svg {
   width: 26px;
   height: 26px;
   fill: white;
-} */
-/* .logo-img {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-} */
-
+}
 .login-title {
   font-size: 20px;
   font-weight: 600;
@@ -161,7 +158,7 @@ input:focus,
 select:focus {
   outline: none;
   border-color: var(--amber-m);
-  box-shadow: 0 0 0 3px rgba(186, 117, 23, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 110, 191, 0.15);
 }
 
 /* 5. TOMBOL */
@@ -191,8 +188,8 @@ select:focus {
   border-color: var(--amber);
 }
 .btn-primary:hover {
-  background: #9a6012;
-  border-color: #9a6012;
+  background: #2e3f8f;
+  border-color: #2e3f8f;
 }
 .btn-green {
   background: var(--green);
@@ -669,7 +666,7 @@ tr:hover td {
   overflow: hidden;
 }
 .rp-header {
-  background: linear-gradient(135deg, #ba7517, #ef9f27);
+  background: linear-gradient(135deg, #5b6ebf, #7b8fd4);
   padding: 1.5rem;
   color: #fff;
 }
@@ -1214,7 +1211,7 @@ tr:hover td {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(186, 117, 23, 0.4);
+  box-shadow: 0 4px 16px rgba(91, 110, 191, 0.4);
   z-index: 99;
   align-items: center;
   justify-content: center;
@@ -1729,9 +1726,9 @@ tr:hover td {
   color: var(--text);
 }
 .notif-bell.has-notif {
-  color: var(--red);
-  border-color: var(--red-l);
-  background: var(--red-l);
+  color: var(--teal);
+  border-color: var(--teal-l);
+  background: var(--teal-l);
 }
 
 .notif-badge {
@@ -2057,4 +2054,174 @@ tr:hover td {
 .stok-search-bar input {
   flex: 1;
   min-width: 160px;
+}
+
+/* ================================================
+   SEARCHABLE SELECT (admin modal & produk)
+   ================================================ */
+.ss-wrap {
+  position: relative;
+}
+
+/* Input dengan ikon search */
+.ss-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.ss-input-wrap svg {
+  position: absolute;
+  left: 10px;
+  width: 15px !important;
+  height: 15px !important;
+  min-width: 15px;
+  min-height: 15px;
+  color: var(--text2);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.ss-input-wrap input[type="text"] {
+  width: 100%;
+  padding-left: 32px;
+}
+
+.ss-drop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #fff;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ss-hide {
+  display: none;
+}
+
+.ss-item {
+  padding: 10px 13px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.1s;
+  gap: 8px;
+}
+.ss-item:last-child {
+  border-bottom: none;
+}
+.ss-item:hover {
+  background: var(--amber-l);
+}
+.ss-item-nama {
+  color: var(--text);
+  font-weight: 500;
+  flex: 1;
+}
+.ss-item-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--bg2);
+  color: var(--text2);
+  border: 0.5px solid var(--border);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ss-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+/* Produk terpilih */
+.ss-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 10px 13px;
+  background: var(--teal-l);
+  border: 0.5px solid #9fe1cb;
+  border-radius: 8px;
+  gap: 8px;
+}
+.ss-selected-info {
+  flex: 1;
+}
+.ss-selected-nama {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal);
+}
+.ss-selected-meta {
+  font-size: 11px;
+  color: #0f6e56;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+.ss-selected-del {
+  border: none;
+  background: rgba(15, 110, 86, 0.15);
+  color: var(--teal);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.ss-selected-del:hover {
+  background: rgba(15, 110, 86, 0.25);
+}
+
+/* Hint stok di bawah selected */
+.ss-stok-hint {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--bg2);
+  border-radius: 6px;
+  display: none;
+}
+.ss-stok-hint.show {
+  display: block;
+}
+.ss-stok-hint.warn {
+  color: var(--red);
+  background: var(--red-l);
+}
+
+/* Daftar produk search bar */
+.produk-search-bar {
+  position: relative;
+  margin-bottom: 12px;
+}
+.produk-search-bar svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px !important;
+  height: 15px !important;
+  min-width: 15px;
+  min-height: 15px;
+  color: var(--text2);
+  pointer-events: none;
+}
+.produk-search-bar input {
+  padding-left: 32px;
 }

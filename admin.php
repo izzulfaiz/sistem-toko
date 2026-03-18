@@ -23,7 +23,10 @@ $user = currentUser();
 <!-- ===== TOPBAR ===== -->
 <div class="topbar">
   <div class="topbar-left">
-    <span class="brand">Parfum Stock System</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="assets/logo.png" alt="MW" style="width:32px;height:32px;object-fit:contain;border-radius:8px;background:#3D52A0;padding:3px"/>
+      <span class="brand">Mekar Wangi System</span>
+    </div>
     <span class="role-badge role-admin">Admin</span>
   </div>
   <div class="topbar-right">
@@ -79,8 +82,37 @@ $user = currentUser();
 <div class="modal-bg" id="modal-stok">
   <div class="modal">
     <div class="modal-title">Edit / Distribusi Stok</div>
-    <div class="form-group"><label>Cabang</label><select id="ms-cabang"></select></div>
-    <div class="form-group"><label>Bibit Parfum</label><select id="ms-bibit"></select></div>
+    <div class="form-group">
+      <label>Cabang</label>
+      <select id="ms-cabang" onchange="updateModalSatuan()"></select>
+    </div>
+    <div class="form-group">
+      <label>Produk</label>
+      <div class="ss-wrap" id="ss-bibit-wrap">
+        <!-- Input pencarian dengan ikon -->
+        <div class="ss-input-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="ss-bibit-input"
+            placeholder="Ketik nama produk..."
+            oninput="filterSSBibit()"
+            autocomplete="off"/>
+        </div>
+        <!-- Dropdown hasil pencarian -->
+        <div id="ss-bibit-drop" class="ss-drop ss-hide"></div>
+        <!-- Hidden value -->
+        <input type="hidden" id="ms-bibit"/>
+        <!-- Produk terpilih -->
+        <div id="ss-bibit-selected" class="ss-selected" style="display:none">
+          <div class="ss-selected-info">
+            <div class="ss-selected-nama" id="ss-bibit-nama"></div>
+            <div class="ss-selected-meta" id="ss-bibit-meta"></div>
+          </div>
+          <button type="button" class="ss-selected-del" onclick="clearSSBibit()" title="Ganti produk">×</button>
+        </div>
+      </div>
+    </div>
     <div class="form-group">
       <label>Tipe</label>
       <select id="ms-tipe">

@@ -103,11 +103,39 @@ if ($method === 'GET') {
     $stmt3->execute([$tgl_awal, $tgl_akhir]);
     $produk_terlaris = $stmt3->fetchAll();
 
-    // ---- 4. RINGKASAN TOTAL ----
-    $total_omzet_bulan  = array_sum(array_column($per_cabang, 'total_omzet'));
-    $total_trx_bulan    = array_sum(array_column($per_cabang, 'jumlah_transaksi'));
-    $hari_aktif         = count(array_filter($grafik_omzet, fn($v) => $v > 0));
+    // ---- 4. TOTAL PENGELUARAN ----
+    $where_kel = $cabang_id ? "WHERE cabang_id = $cabang_id" : "";
+    $stmt_kel  = $db->prepare("
+        SELECT SUM(nominal) AS total_keluar, COUNT(*) AS jml_keluar
+        FROM pengeluaran
+        WHERE created_at BETWEEN ? AND ?
+        " . ($cabang_id ? "AND cabang_id = $cabang_id" : ""));
+    $stmt_kel->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
+    $kel_data       = $stmt_kel->fetch();
+    $total_keluar   = (float)($kel_data['total_keluar'] ?? 0);
+    $jml_keluar     = (int)($kel_data['jml_keluar'] ?? 0);
+
+    // Pengeluaran per cabang
+    $where_kel2 = $cabang_id ? "AND p.cabang_id = $cabang_id" : "";
+    $stmt_kel2  = $db->prepare("
+        SELECT c.id AS cabang_id, c.nama AS cabang_nama,
+               COUNT(p.id) AS jml_keluar, SUM(p.nominal) AS total_keluar
+        FROM cabang c
+        LEFT JOIN pengeluaran p ON p.cabang_id = c.id
+            AND p.created_at BETWEEN ? AND ?
+        WHERE 1=1 $where_kel2
+        GROUP BY c.id, c.nama
+        ORDER BY total_keluar DESC
+    ");
+    $stmt_kel2->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
+    $keluar_per_cabang = $stmt_kel2->fetchAll();
+
+    // ---- 5. RINGKASAN TOTAL ----
+    $total_omzet_bulan   = array_sum(array_column($per_cabang, 'total_omzet'));
+    $total_trx_bulan     = array_sum(array_column($per_cabang, 'jumlah_transaksi'));
+    $hari_aktif          = count(array_filter($grafik_omzet, fn($v) => $v > 0));
     $rata_omzet_per_hari = $hari_aktif > 0 ? $total_omzet_bulan / $hari_aktif : 0;
+    $laba_bersih         = $total_omzet_bulan - $total_keluar;
 
     // Nama bulan Indonesia
     $nama_bulan = ['', 'Januari','Februari','Maret','April','Mei','Juni',
@@ -129,5 +157,9 @@ if ($method === 'GET') {
         'total_transaksi'    => $total_trx_bulan,
         'hari_aktif'         => $hari_aktif,
         'rata_omzet_per_hari'=> $rata_omzet_per_hari,
+        'total_keluar'       => $total_keluar,
+        'jml_keluar'         => $jml_keluar,
+        'laba_bersih'        => $laba_bersih,
+        'keluar_per_cabang'  => $keluar_per_cabang,
     ]);
 }

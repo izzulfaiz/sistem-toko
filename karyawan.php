@@ -90,7 +90,10 @@ $user = currentUser();
 
 <div class="topbar">
   <div class="topbar-left">
-    <span class="brand">Parfum Stock</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="assets/logo.png" alt="MW" style="width:30px;height:30px;object-fit:contain;border-radius:7px;background:#3D52A0;padding:3px"/>
+      <span class="brand">Mekar Wangi</span>
+    </div>
     <span class="role-badge role-karyawan">Karyawan</span>
   </div>
   <div class="topbar-right">
@@ -108,12 +111,17 @@ $user = currentUser();
 <div class="k-tabs">
   <button class="k-tab-btn active" id="ktab-btn-transaksi" onclick="kTab('transaksi')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59L5.25 14c-.16.28-.25.61-.25.96C5 16.1 5.9 17 7 17h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0023.46 4H5.21l-.94-2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-    <span class="k-tab-label">Transaksi</span>
+    <span class="k-tab-label">Masuk</span>
+  </button>
+  <button class="k-tab-btn" id="ktab-btn-keluar" onclick="kTab('keluar')">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v3l-4-4 4-4v3h5v2zm4-9H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
+    <span class="k-tab-label">Keluar</span>
   </button>
   <button class="k-tab-btn" id="ktab-btn-riwayat" onclick="kTab('riwayat')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
     <span class="k-tab-label">Riwayat</span>
   </button>
+
   <button class="k-tab-btn" id="ktab-btn-stok" onclick="kTab('stok')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.72V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.72c.57-.38 1-1 1-1.72V4c0-1.1-1-2-2-2zm-5 12H9v-2h6v2zm5-7H4V4l16-.02V7z"/></svg>
     <span class="k-tab-label">Cek Stok</span>
@@ -200,6 +208,46 @@ $user = currentUser();
 
   </div><!-- end transaksi -->
 
+  <!-- TAB: TRANSAKSI KELUAR -->
+  <div id="ktab-keluar" style="display:none">
+
+    <div class="k-card">
+      <div class="k-card-title">Catat Pengeluaran</div>
+      <div class="form-group">
+        <label>Nama Item / Keperluan</label>
+        <input type="text" id="kel-nama" placeholder="e.g. Beli galon, Beli plastik, Bayar listrik"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nominal (Rp)</label>
+          <input type="number" id="kel-nominal" min="1" step="100" placeholder="0" oninput="previewKeluar()"/>
+        </div>
+        <div class="form-group">
+          <label>Preview</label>
+          <div id="kel-preview" style="padding:9px 11px;background:var(--red-l);border-radius:8px;font-weight:700;font-size:15px;color:var(--red);border:0.5px solid #f7c1c1">Rp 0</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Keterangan (opsional)</label>
+        <input type="text" id="kel-ket" placeholder="e.g. untuk operasional cabang"/>
+      </div>
+      <div id="kel-msg"></div>
+      <button class="btn btn-danger" style="width:100%;padding:11px;font-size:14px" onclick="simpanKeluar()">
+        Catat Pengeluaran
+      </button>
+    </div>
+
+    <!-- Riwayat pengeluaran hari ini -->
+    <div class="k-card">
+      <div class="k-card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Pengeluaran Hari Ini</span>
+        <span class="live-badge"><span class="pulse"></span>Live</span>
+      </div>
+      <div id="kel-list"><div class="loading">Memuat...</div></div>
+    </div>
+
+  </div><!-- end keluar -->
+
   <!-- TAB: RIWAYAT -->
   <div id="ktab-riwayat" style="display:none">
     <div class="k-card" style="padding:12px">
@@ -213,6 +261,8 @@ $user = currentUser();
     </div>
     <div id="riwayat-content"><div class="empty">Pilih tanggal untuk melihat riwayat</div></div>
   </div>
+
+
 
   <!-- TAB: REKAP BULANAN -->
   <div id="ktab-rekap" style="display:none">
@@ -232,14 +282,22 @@ $user = currentUser();
   <!-- TAB: STOK -->
   <div id="ktab-stok" style="display:none">
     <div class="k-card">
-      <div class="k-card-title">Stok <?= htmlspecialchars($user['cabang_nama'] ?? '') ?></div>
-      <input type="text" id="stok-search" placeholder="Cari produk..." oninput="filterStokTable()" style="margin-bottom:10px"/>
+      <div class="k-card-title" id="k-stok-title">Stok <?= htmlspecialchars($user['cabang_nama'] ?? '') ?></div>
+      <div style="position:relative;margin-bottom:10px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#888780;pointer-events:none">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="stok-search" placeholder="Cari produk..."
+          oninput="filterKaryawanStok(this.value)" style="padding-left:32px"/>
+      </div>
       <div class="tbl-wrap">
         <table>
           <thead><tr><th>Produk</th><th>Stok</th><th>Satuan</th><th>Status</th></tr></thead>
           <tbody id="k-stok-tbody"><tr><td colspan="4" class="loading">Memuat...</td></tr></tbody>
         </table>
       </div>
+      <div id="k-stok-pagination"></div>
     </div>
   </div>
 

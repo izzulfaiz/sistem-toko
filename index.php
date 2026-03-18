@@ -44,11 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="login-box">
 
     <div class="login-logo">
-      <div class="login-icon">
-  <img src="pic/mw-removebg-preview.png" alt="Logo MW" class="logo-img" style="width: 40px; height: 40px; object-fit: contain;"/>
-</div>
-
-      <h1 class="login-title">Mekar Wangi Stock System</h1>
+      <img src="assets/logo.png" alt="Mekar Wangi"
+        style="width:90px;height:90px;object-fit:contain;border-radius:16px;background:#3D52A0;padding:8px;margin-bottom:12px"/>
+      <h1 class="login-title">Mekar Wangi System</h1>
       <p class="login-sub">Masuk untuk melanjutkan</p>
     </div>
 
@@ -70,7 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
     </form>
-  
+
+    <!-- HAPUS BAGIAN INI sebelum digunakan sungguhan -->
+    <div class="demo-hint">
+      <p>Demo login:</p>
+      <p>Admin &nbsp;— <code>admin</code> / <code>password</code></p>
+      <p>Karyawan — <code>kar1</code> s/d <code>kar7</code> / <code>password</code></p>
+    </div>
+
   </div>
 </div>
 
