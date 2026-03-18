@@ -1467,8 +1467,11 @@ async function exportPDFKaryawan() {
 
   // Header
 <<<<<<< HEAD
+<<<<<<< HEAD
   doc.setFillColor(46, 125, 50);
 =======
+=======
+>>>>>>> 68a7f87038df7de570629055ac264474480935c5
   doc.setFillColor(186, 117, 23);
 >>>>>>> 68a7f87038df7de570629055ac264474480935c5
   doc.rect(0, 0, W, 34, "F");
@@ -1550,7 +1553,11 @@ async function exportPDFKaryawan() {
           i === 0 ? (t.created_at.split(" ")[1] || "").substring(0, 5) : "",
           item.bibit_nama,
 <<<<<<< HEAD
+<<<<<<< HEAD
           `${parseFloat(item.jumlah_jual)}${item.satuan_jual}`,
+=======
+          `${item.jumlah_jual} ${item.satuan_jual}`,
+>>>>>>> 68a7f87038df7de570629055ac264474480935c5
 =======
           `${item.jumlah_jual} ${item.satuan_jual}`,
 >>>>>>> 68a7f87038df7de570629055ac264474480935c5
@@ -1583,8 +1590,11 @@ async function exportPDFKaryawan() {
     },
     headStyles: { fillColor: [15, 110, 86], textColor: 255, fontStyle: "bold" },
 <<<<<<< HEAD
+<<<<<<< HEAD
     alternateRowStyles: { fillColor: [232, 245, 233] },
 =======
+=======
+>>>>>>> 68a7f87038df7de570629055ac264474480935c5
     alternateRowStyles: { fillColor: [250, 249, 248] },
 >>>>>>> 68a7f87038df7de570629055ac264474480935c5
     columnStyles: {
@@ -1685,7 +1695,11 @@ async function exportPDFKaryawan() {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
 <<<<<<< HEAD
+<<<<<<< HEAD
     doc.text(TOKO_NAMA + " — Laporan Harian", M, 293);
+=======
+    doc.text("Parfum Stock System — Laporan Harian", M, 293);
+>>>>>>> 68a7f87038df7de570629055ac264474480935c5
 =======
     doc.text("Parfum Stock System — Laporan Harian", M, 293);
 >>>>>>> 68a7f87038df7de570629055ac264474480935c5
