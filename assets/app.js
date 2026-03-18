@@ -1466,7 +1466,7 @@ async function exportPDFKaryawan() {
   let y = 0;
 
   // Header
-  doc.setFillColor(46, 125, 50);
+  doc.setFillColor(186, 117, 23);
   doc.rect(0, 0, W, 34, "F");
   doc.setFillColor(76, 175, 80);
   doc.rect(0, 28, W, 6, "F");
@@ -1545,7 +1545,7 @@ async function exportPDFKaryawan() {
           i === 0 ? t.kode_nota : "",
           i === 0 ? (t.created_at.split(" ")[1] || "").substring(0, 5) : "",
           item.bibit_nama,
-          `${parseFloat(item.jumlah_jual)}${item.satuan_jual}`,
+          `${item.jumlah_jual} ${item.satuan_jual}`,
           "Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID"),
           "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID"),
         ]);
@@ -1574,7 +1574,7 @@ async function exportPDFKaryawan() {
       lineWidth: 0.2,
     },
     headStyles: { fillColor: [15, 110, 86], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [232, 245, 233] },
+    alternateRowStyles: { fillColor: [250, 249, 248] },
     columnStyles: {
       4: { halign: "right" },
       5: { halign: "right", fontStyle: "bold" },
@@ -1672,7 +1672,7 @@ async function exportPDFKaryawan() {
     doc.setTextColor(136, 135, 128);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text(TOKO_NAMA + " — Laporan Harian", M, 293);
+    doc.text("Parfum Stock System — Laporan Harian", M, 293);
     doc.text("Hal " + i + "/" + total, W - M, 293, { align: "right" });
   }
 
