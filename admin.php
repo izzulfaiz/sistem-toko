@@ -83,8 +83,12 @@ $user = currentUser();
   <div class="modal">
     <div class="modal-title">Edit / Distribusi Stok</div>
     <div class="form-group">
-      <label>Cabang</label>
-      <select id="ms-cabang" onchange="updateModalSatuan()"></select>
+      <label>Cabang <span style="font-size:11px;color:var(--text2);font-weight:400">(pilih satu atau lebih)</span></label>
+      <div id="ms-cabang-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;padding:8px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg2)"></div>
+      <div style="margin-top:6px;display:flex;gap:8px">
+        <button type="button" class="btn btn-sm" onclick="pilihSemuaCabang()">Pilih Semua</button>
+        <button type="button" class="btn btn-sm" onclick="hapusSemuaCabang()">Hapus Semua</button>
+      </div>
     </div>
     <div class="form-group">
       <label>Produk</label>

@@ -82,26 +82,40 @@ if ($method === 'PUT') {
     requireAdmin();
     $body = json_decode(file_get_contents('php://input'), true);
 
-    $cabang_id = (int)($body['cabang_id'] ?? 0);
+    // Support multi-cabang (cabang_ids) atau single cabang (cabang_id)
+    $cabang_ids = [];
+    if (!empty($body['cabang_ids']) && is_array($body['cabang_ids'])) {
+        $cabang_ids = array_map('intval', $body['cabang_ids']);
+    } elseif (!empty($body['cabang_id'])) {
+        $cabang_ids = [(int)$body['cabang_id']];
+    }
+
     $bibit_id  = (int)($body['bibit_id']  ?? 0);
     $jumlah    = (float)($body['jumlah']  ?? 0);
     $tipe      = in_array($body['tipe'] ?? '', ['tambah','set']) ? $body['tipe'] : 'set';
     $ket       = clean($body['keterangan'] ?? '');
 
-    if (!$cabang_id || !$bibit_id || $jumlah < 0) {
+    if (empty($cabang_ids) || !$bibit_id || $jumlah < 0) {
         jsonResponse(['success' => false, 'message' => 'Data tidak lengkap'], 400);
     }
 
-    $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
-    $jumlah_baru = $tipe === 'tambah' ? $saat_ini + $jumlah : $jumlah;
-    $delta       = $tipe === 'tambah' ? $jumlah : abs($jumlah_baru - $saat_ini);
+    // Loop semua cabang yang dipilih — jumlah sama untuk semua
+    $results = [];
+    foreach ($cabang_ids as $cabang_id) {
+        $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+        $jumlah_baru = $tipe === 'tambah' ? $saat_ini + $jumlah : $jumlah;
+        $delta       = $tipe === 'tambah' ? $jumlah : abs($jumlah_baru - $saat_ini);
+        $ok          = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], $tipe, $delta, $ket);
+        $results[]   = $ok;
+    }
 
-    $ok = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], $tipe, $delta, $ket);
-
+    $allOk = !in_array(false, $results);
     jsonResponse([
-        'success' => $ok,
-        'message' => $ok ? 'Stok berhasil diperbarui' : 'Gagal menyimpan',
-        'sisa'    => $jumlah_baru,
+        'success' => $allOk,
+        'message' => $allOk
+            ? 'Stok berhasil diperbarui ke ' . count($cabang_ids) . ' cabang'
+            : 'Sebagian cabang gagal diperbarui',
+        'total'   => count($cabang_ids),
     ]);
 }
 

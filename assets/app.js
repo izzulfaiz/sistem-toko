@@ -864,10 +864,39 @@ function goProdukPage(page) {
 
 // ---- Searchable Select untuk Bibit di Modal Stok ----
 function populateStokModal() {
-  $("ms-cabang").innerHTML = cabangData
-    .map((c) => `<option value="${c.id}">${esc(c.nama)}</option>`)
-    .join("");
+  // Render checkbox list untuk multi-select cabang
+  const listEl = $("ms-cabang-list");
+  if (listEl) {
+    listEl.innerHTML = cabangData
+      .map(
+        (c) => `
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:3px 0">
+        <input type="checkbox" class="ms-cabang-cb" value="${c.id}"
+          style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer"/>
+        ${esc(c.nama)}
+      </label>`,
+      )
+      .join("");
+  }
   clearSSBibit();
+}
+
+function pilihSemuaCabang() {
+  document
+    .querySelectorAll(".ms-cabang-cb")
+    .forEach((cb) => (cb.checked = true));
+}
+
+function hapusSemuaCabang() {
+  document
+    .querySelectorAll(".ms-cabang-cb")
+    .forEach((cb) => (cb.checked = false));
+}
+
+function getSelectedCabangs() {
+  return [...document.querySelectorAll(".ms-cabang-cb:checked")].map((cb) =>
+    parseInt(cb.value),
+  );
 }
 
 function filterSSBibit() {
@@ -967,17 +996,21 @@ function updateModalSatuan() {
 
 function openEditStok(cabang_id, bibit_id) {
   populateStokModal();
-  $("ms-cabang").value = cabang_id;
+
+  // Pre-select cabang tertentu
+  setTimeout(() => {
+    document.querySelectorAll(".ms-cabang-cb").forEach((cb) => {
+      cb.checked = parseInt(cb.value) === cabang_id;
+    });
+  }, 50);
+
   $("ms-tipe").value = "tambah";
   $("ms-jumlah").value = "";
   if ($("ms-ket")) $("ms-ket").value = "";
 
-  // Set bibit via searchable select
   if (bibit_id) pilihSSBibit(bibit_id);
-
   openModal("modal-stok");
 
-  // Tutup dropdown kalau klik luar
   setTimeout(() => {
     document.addEventListener("click", function handler(e) {
       if (!e.target.closest("#ss-bibit-wrap")) {
@@ -990,26 +1023,39 @@ function openEditStok(cabang_id, bibit_id) {
 
 async function saveStokModal() {
   const bibit_id = parseInt($("ms-bibit")?.value);
+  const cabangs = getSelectedCabangs();
+  const jumlah = parseFloat($("ms-jumlah").value);
+  const tipe = $("ms-tipe").value;
+  const keterangan = $("ms-ket")?.value || "";
+
   if (!bibit_id) {
     toastWarn("Pilih produk terlebih dahulu");
     return;
   }
-  const body = {
-    cabang_id: parseInt($("ms-cabang").value),
-    bibit_id,
-    jumlah: parseFloat($("ms-jumlah").value),
-    tipe: $("ms-tipe").value,
-    keterangan: $("ms-ket")?.value || "",
-  };
-  if (!body.cabang_id || isNaN(body.jumlah)) {
-    toastWarn("Lengkapi semua field");
+  if (!cabangs.length) {
+    toastWarn("Pilih minimal 1 cabang");
     return;
   }
+  if (isNaN(jumlah) || jumlah <= 0) {
+    toastWarn("Isi jumlah yang valid");
+    return;
+  }
+
   try {
-    await api(BASE_URL + "/api/stok.php", "PUT", body);
+    await api(BASE_URL + "/api/stok.php", "PUT", {
+      cabang_ids: cabangs,
+      bibit_id,
+      jumlah,
+      tipe,
+      keterangan,
+    });
     closeModal("modal-stok");
     await loadStokData();
     renderAdminContent();
+    toastOk(
+      `Stok berhasil diupdate ke ${cabangs.length} cabang`,
+      "Distribusi Berhasil",
+    );
   } catch (e) {
     alert(e.message);
   }

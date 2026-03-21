@@ -2391,3 +2391,20 @@ tr:hover td {
     min-width: 120px;
   }
 }
+
+/* ================================================
+   MULTI-SELECT CABANG (modal distribusi)
+   ================================================ */
+#ms-cabang-list label:hover {
+  background: var(--amber-l);
+  border-radius: 6px;
+  padding-left: 4px;
+  margin-left: -4px;
+}
+#ms-cabang-list::-webkit-scrollbar {
+  width: 4px;
+}
+#ms-cabang-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
