@@ -497,6 +497,10 @@ select:focus {
 /* 14. TABEL */
 .tbl-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tbl-wrap table {
+  min-width: 520px;
 }
 table {
   width: 100%;
@@ -891,16 +895,18 @@ tr:hover td {
     font-size: 11px;
   }
 
-  /* Stok row — sembunyikan tombol edit, tap row saja */
+  /* Stok row — tampilkan tombol edit di HP */
   .stock-row {
-    grid-template-columns: 1fr 60px 52px;
-    gap: 8px;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 6px;
   }
   .stock-row .btn-sm {
-    display: none;
-  } /* tombol edit disembunyikan di HP */
+    display: inline-block;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
   .stock-name {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   /* Log */
@@ -1079,13 +1085,15 @@ tr:hover td {
 
   /* Stok row — sembunyikan tombol edit, tap nama untuk edit */
   .stock-row {
-    grid-template-columns: 1fr 60px 55px;
-    gap: 8px;
-    padding: 10px 0;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 5px;
+    padding: 8px 0;
   }
   .stock-row .btn-sm {
-    display: none;
-  } /* sembunyikan di HP, pakai fab button */
+    display: inline-block;
+    font-size: 10px;
+    padding: 3px 7px;
+  }
 
   /* Tabel scroll horizontal */
   .tbl-wrap {
@@ -2224,4 +2232,162 @@ tr:hover td {
 }
 .produk-search-bar input {
   padding-left: 32px;
+}
+
+/* ================================================
+   TOAST NOTIFICATION
+   ================================================ */
+#toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 260px;
+  max-width: 340px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: all;
+  animation: toastIn 0.25s ease;
+  line-height: 1.4;
+}
+.toast.hiding {
+  animation: toastOut 0.25s ease forwards;
+}
+
+.toast-ok {
+  background: #fff;
+  border-left: 4px solid var(--amber);
+  color: var(--text);
+}
+.toast-danger {
+  background: #fff;
+  border-left: 4px solid var(--red);
+  color: var(--text);
+}
+.toast-warn {
+  background: #fff;
+  border-left: 4px solid #f59e0b;
+  color: var(--text);
+}
+.toast-info {
+  background: #fff;
+  border-left: 4px solid #3b82f6;
+  color: var(--text);
+}
+
+.toast-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.toast-body {
+  flex: 1;
+}
+.toast-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.toast-msg {
+  font-size: 12px;
+  color: var(--text2);
+}
+.toast-close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 16px;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.6;
+}
+.toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+@media (max-width: 480px) {
+  #toast-container {
+    top: auto;
+    bottom: 16px;
+    right: 12px;
+    left: 12px;
+  }
+  .toast {
+    min-width: unset;
+    max-width: 100%;
+  }
+}
+
+/* ================================================
+   RESPONSIVE FIXES — TABEL & STOK
+   ================================================ */
+@media (max-width: 600px) {
+  /* Tabel kelola user — scroll hint */
+  .tbl-wrap {
+    position: relative;
+    border-radius: 10px;
+    border: 0.5px solid var(--border);
+  }
+  .tbl-wrap::after {
+    content: "← geser →";
+    display: block;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text2);
+    padding: 4px;
+    background: var(--bg2);
+    border-top: 0.5px solid var(--border);
+  }
+  /* Sembunyikan kolom yang tidak penting di HP */
+  .tbl-wrap table th:nth-child(5),
+  .tbl-wrap table td:nth-child(5) {
+    display: none;
+  } /* sembunyikan kolom Status */
+
+  /* Stok row — wrap ke 2 baris jika sangat sempit */
+  .stock-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .stock-row > div:first-child {
+    flex: 1;
+    min-width: 120px;
+  }
 }

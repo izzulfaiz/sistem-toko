@@ -7,6 +7,10 @@ const STOK_CRITICAL = 40;
 const STOK_MAX = 1000;
 const TOKO_NAMA = "Mekar Wangi System";
 
+// ---- Pagination per halaman (ubah sesuai kebutuhan) ----
+// const PER_PAGE         = 25;  // sudah di bawah (log & stok admin)
+const RIWAYAT_PER_PAGE = 10; // riwayat transaksi karyawan
+
 const BASE_URL = (() => {
   const p = window.location.pathname;
   return p.substring(0, p.lastIndexOf("/"));
@@ -19,6 +23,46 @@ const esc = (s) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+/* ================================================
+   TOAST NOTIFICATION
+   ================================================ */
+function toast(msg, type = "ok", title = "", duration = 3500) {
+  const icons = { ok: "✅", danger: "❌", warn: "⚠️", info: "ℹ️" };
+  const container = document.getElementById("toast-container");
+  if (!container) {
+    alert(msg);
+    return;
+  }
+
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `
+    <span class="toast-icon">${icons[type] || "ℹ️"}</span>
+    <div class="toast-body">
+      ${title ? `<div class="toast-title">${title}</div>` : ""}
+      <div class="toast-msg">${msg}</div>
+    </div>
+    <button class="toast-close" onclick="this.closest('.toast').remove()">×</button>`;
+  container.appendChild(el);
+
+  setTimeout(() => {
+    el.classList.add("hiding");
+    setTimeout(() => el.remove(), 250);
+  }, duration);
+}
+
+function toastOk(msg, title = "Berhasil") {
+  toast(msg, "ok", title);
+}
+function toastErr(msg, title = "Gagal") {
+  toast(msg, "danger", title);
+}
+function toastWarn(msg, title = "Perhatian") {
+  toast(msg, "warn", title);
+}
+function toastInfo(msg, title = "Info") {
+  toast(msg, "info", title);
+}
 
 let stokData = [];
 let cabangData = [];
@@ -34,6 +78,13 @@ async function api(url, method = "GET", body = null) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   const data = await res.json();
+
+  // Handle session timeout — redirect ke login
+  if (res.status === 401 && data.timeout) {
+    window.location.href = BASE_URL + "/index.php?timeout=1";
+    return;
+  }
+
   if (!res.ok) throw new Error(data.message || "Server error");
   return data;
 }
@@ -74,6 +125,12 @@ async function loadStokData() {
     stokData = data.stok || [];
     cabangData = data.cabang || [];
     bibitData = data.bibit || [];
+
+    // Sync threshold dari server config (agar sinkron dengan PHP)
+    if (data.config) {
+      window.STOK_WARNING = data.config.stok_warning || STOK_WARNING;
+      window.STOK_CRITICAL = data.config.stok_critical || STOK_CRITICAL;
+    }
     return data;
   } catch (e) {
     console.error("loadStokData:", e);
@@ -157,9 +214,9 @@ function buildStokTab() {
     const warn = isMl ? STOK_WARNING : 5;
     const crit = isMl ? STOK_CRITICAL : 2;
     if (v <= crit)
-      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${v} ${esc(sat)}</strong></div>`;
+      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
     else if (v <= warn)
-      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${v} ${esc(sat)}</strong></div>`;
+      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
   });
 
   const cards = cabangs
@@ -181,7 +238,7 @@ function buildStokTab() {
           <div class="prog"><div class="prog-fill prog-${cls}" style="width:${pct}%"></div></div>
         </div>
         <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span>
-        <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${v} ${esc(sat)}</span>
+        <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${parseFloat(v)} ${esc(sat)}</span>
         <button class="btn btn-sm" onclick="openEditStok(${c.id},${r.bibit_id})">Edit</button>
       </div>`;
         })
@@ -343,7 +400,7 @@ function buildReportHTML(tgl, cab_id, data) {
       const lbl =
         v < STOK_CRITICAL ? "Kritis" : v < STOK_WARNING ? "Rendah" : "OK";
       return `<tr><td>${esc(r.cabang_nama)}</td><td>${esc(r.bibit_nama)}</td>
-      <td style="text-align:right"><strong>${v} ${esc(sat)}</strong></td>
+      <td style="text-align:right"><strong>${parseFloat(v)} ${esc(sat)}</strong></td>
       <td style="text-align:center"><span class="${cls}">${lbl}</span></td></tr>`;
     })
     .join("");
@@ -383,7 +440,7 @@ async function exportPDF() {
   const tgl = $("rp-tgl")?.value;
   const cab_id = $("rp-cabang")?.value;
   if (!tgl) {
-    alert("Pilih tanggal dulu");
+    toastWarn("Pilih tanggal dulu");
     return;
   }
   const url = `${BASE_URL}/api/log.php?tanggal=${tgl}${cab_id !== "all" ? "&cabang_id=" + cab_id : ""}`;
@@ -491,7 +548,9 @@ async function exportPDF() {
         l.user_nama,
         l.cabang_nama,
         l.bibit_nama,
-        (l.tipe === "kurang" ? "- " : "") + l.jumlah + (l.satuan || ""),
+        (l.tipe === "kurang" ? "- " : "") +
+          parseFloat(l.jumlah) +
+          (l.satuan || ""),
         l.sisa + (l.satuan || ""),
         l.keterangan || "—",
       ])
@@ -509,12 +568,8 @@ async function exportPDF() {
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: {
-      fillColor: [46, 125, 50],
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [232, 245, 233] },
+    headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [250, 249, 248] },
     columnStyles: { 4: { halign: "right" }, 5: { halign: "right" } },
     didParseCell(d) {
       if (d.section === "body" && d.column.index === 4)
@@ -541,7 +596,7 @@ async function exportPDF() {
     body: filteredStok.map((r) => [
       r.cabang_nama,
       r.bibit_nama,
-      r.jumlah + (r.satuan_dasar || r.satuan || ""),
+      parseFloat(r.jumlah) + (r.satuan_dasar || r.satuan || ""),
       r.jumlah < STOK_CRITICAL
         ? "Kritis"
         : r.jumlah < STOK_WARNING
@@ -554,12 +609,8 @@ async function exportPDF() {
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: {
-      fillColor: [46, 125, 50],
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: { fillColor: [232, 245, 233] },
+    headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [250, 249, 248] },
     columnStyles: { 2: { halign: "right" }, 3: { halign: "center" } },
     didParseCell(d) {
       if (d.section === "body" && d.column.index === 3) {
@@ -940,7 +991,7 @@ function openEditStok(cabang_id, bibit_id) {
 async function saveStokModal() {
   const bibit_id = parseInt($("ms-bibit")?.value);
   if (!bibit_id) {
-    alert("Pilih produk terlebih dahulu");
+    toastWarn("Pilih produk terlebih dahulu");
     return;
   }
   const body = {
@@ -951,7 +1002,7 @@ async function saveStokModal() {
     keterangan: $("ms-ket")?.value || "",
   };
   if (!body.cabang_id || isNaN(body.jumlah)) {
-    alert("Lengkapi semua field");
+    toastWarn("Lengkapi semua field");
     return;
   }
   try {
@@ -1045,7 +1096,7 @@ async function saveBibit() {
     renderAdminContent();
   } catch (e) {
     if ($("mb-err")) $("mb-err").textContent = e.message;
-    else alert(e.message);
+    else toastErr(e.message);
   }
 }
 
@@ -1056,7 +1107,7 @@ async function saveCabang() {
     alamat: $("mc-alamat").value.trim(),
   };
   if (!body.nama) {
-    alert("Masukkan nama cabang");
+    toastWarn("Masukkan nama cabang");
     return;
   }
   try {
@@ -1285,11 +1336,11 @@ function tambahItem() {
   );
 
   if (jumlah <= 0) {
-    alert("Jumlah harus lebih dari 0");
+    toastWarn("Jumlah harus lebih dari 0");
     return;
   }
   if (harga < 0) {
-    alert("Harga tidak boleh negatif");
+    toastWarn("Harga tidak boleh negatif");
     return;
   }
 
@@ -1304,8 +1355,9 @@ function tambahItem() {
     .reduce((s, i) => s + i.jumlah_stok, 0);
 
   if (jumlah_stok + sudahDiNota > sisa) {
-    alert(
-      `Stok tidak cukup!\nDibutuhkan: ${jumlah_stok + sudahDiNota} ${selectedProduk.satuan_dasar || ""}\nTersedia: ${sisa}`,
+    toastErr(
+      `Dibutuhkan: ${jumlah_stok + sudahDiNota} ${selectedProduk.satuan_dasar || ""}, tersedia: ${sisa}`,
+      "Stok Tidak Cukup",
     );
     return;
   }
@@ -1345,7 +1397,7 @@ function renderNota() {
     <div class="nota-item">
       <div class="nota-item-info">
         <div class="nota-item-nama">${esc(item.bibit_nama)}</div>
-        <div class="nota-item-sub">${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
+        <div class="nota-item-sub">${item.jumlah_jual} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
       </div>
       <div class="nota-item-price">
         <div class="nota-item-total">Rp ${item.subtotal.toLocaleString("id-ID")}</div>
@@ -1373,7 +1425,7 @@ function batalNota() {
 
 async function simpanTransaksi() {
   if (!notaItems.length) {
-    alert("Tambahkan item dulu");
+    toastWarn("Tambahkan produk ke nota terlebih dahulu");
     return;
   }
   const catatan = $("k-catatan")?.value || "";
@@ -1388,14 +1440,15 @@ async function simpanTransaksi() {
       renderNota();
       clearProduk();
       if ($("k-catatan")) $("k-catatan").value = "";
-      alert(
-        `Transaksi berhasil!\nNota: ${res.kode_nota}\nTotal: Rp ${parseFloat(res.total).toLocaleString("id-ID")}`,
+      toastOk(
+        `Nota: ${res.kode_nota} — Total: Rp ${parseFloat(res.total).toLocaleString("id-ID")}`,
+        "Transaksi Berhasil!",
       );
     } else {
-      alert("Gagal: " + res.message);
+      toastErr(res.message);
     }
   } catch (e) {
-    alert("Error: " + e.message);
+    toastErr(e.message);
   }
 }
 
@@ -1418,12 +1471,12 @@ Aksi ini tidak bisa diurungkan.`)
       await loadKaryawanData();
       // Reload riwayat
       await loadRiwayat();
-      alert("Nota berhasil dibatalkan. Stok sudah dikembalikan.");
+      toastOk("Stok sudah dikembalikan.", "Nota Dibatalkan");
     } else {
-      alert("Gagal: " + res.message);
+      toastErr(res.message);
     }
   } catch (e) {
-    alert("Error: " + e.message);
+    toastErr(e.message);
   }
 }
 
@@ -1466,7 +1519,7 @@ async function exportPDFKaryawan() {
   let y = 0;
 
   // Header
-  doc.setFillColor(186, 117, 23);
+  doc.setFillColor(46, 125, 50);
   doc.rect(0, 0, W, 34, "F");
   doc.setFillColor(76, 175, 80);
   doc.rect(0, 28, W, 6, "F");
@@ -1837,8 +1890,8 @@ function renderNotifList(notifs) {
       });
       const pesanTipe =
         n.tipe === "kritis"
-          ? `Stok kritis! Hanya tersisa ${n.jumlah} ${n.satuan}`
-          : `Stok rendah, tersisa ${n.jumlah} ${n.satuan}`;
+          ? `Stok kritis! Hanya tersisa ${parseFloat(n.jumlah)} ${n.satuan}`
+          : `Stok rendah, tersisa ${parseFloat(n.jumlah)} ${n.satuan}`;
 
       return `<div class="notif-item unread" onclick="bacaNotif(${n.id})">
       <div class="notif-dot ${n.tipe}"></div>
@@ -1959,7 +2012,7 @@ function isiSelectBulanTahun(idBulan, idTahun) {
   }
 }
 
-function buildGrafik(canvasId, labels, omzetData, trxData) {
+function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -1983,18 +2036,34 @@ function buildGrafik(canvasId, labels, omzetData, trxData) {
           borderWidth: 2,
           borderRadius: 4,
           yAxisID: "y",
+          order: 3,
+        },
+        {
+          label: "Laba Bersih (Rp)",
+          data: labaData || omzetData,
+          type: "line",
+          borderColor: "#2E7D32",
+          backgroundColor: "rgba(46,125,50,0.08)",
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: "#2E7D32",
+          tension: 0.3,
+          fill: true,
+          yAxisID: "y",
+          order: 2,
         },
         {
           label: "Transaksi",
           data: trxData,
           type: "line",
           borderColor: "#C2185B",
-          backgroundColor: "rgba(194,24,91,0.1)",
+          backgroundColor: "rgba(194,24,91,0.05)",
           borderWidth: 2,
           pointRadius: 3,
           pointBackgroundColor: "#C2185B",
           tension: 0.3,
           yAxisID: "y1",
+          order: 1,
         },
       ],
     },
@@ -2235,6 +2304,7 @@ async function loadRekapAdmin() {
           data.grafik_labels,
           data.grafik_omzet,
           data.grafik_trx,
+          data.grafik_laba,
         ),
       100,
     );
@@ -2267,6 +2337,7 @@ async function loadRekapKaryawan() {
           data.grafik_labels,
           data.grafik_omzet,
           data.grafik_trx,
+          data.grafik_laba,
         ),
       100,
     );
@@ -2415,7 +2486,7 @@ async function exportPDFRekap(isAdmin) {
           textColor: 255,
           fontStyle: "bold",
         },
-        alternateRowStyles: { fillColor: [232, 245, 233] },
+        alternateRowStyles: { fillColor: [250, 249, 248] },
         columnStyles: {
           2: { halign: "center" },
           3: { halign: "right" },
@@ -2464,7 +2535,9 @@ async function exportPDFRekap(isAdmin) {
         ? terlarisArr.map((p, i) => [
             i + 1,
             p.bibit_nama,
-            p.total_terjual + " " + (p.satuan_jual || p.satuan || ""),
+            parseFloat(p.total_terjual) +
+              " " +
+              (p.satuan_jual || p.satuan || ""),
             p.frekuensi + "x",
             "Rp " + p.total_omzet.toLocaleString("id-ID"),
           ])
@@ -2480,7 +2553,7 @@ async function exportPDFRekap(isAdmin) {
         textColor: 255,
         fontStyle: "bold",
       },
-      alternateRowStyles: { fillColor: [232, 245, 233] },
+      alternateRowStyles: { fillColor: [250, 249, 248] },
       columnStyles: {
         2: { halign: "right" },
         3: { halign: "center" },
@@ -2528,7 +2601,7 @@ async function exportPDFRekap(isAdmin) {
         textColor: 255,
         fontStyle: "bold",
       },
-      alternateRowStyles: { fillColor: [232, 245, 233] },
+      alternateRowStyles: { fillColor: [250, 249, 248] },
       columnStyles: {
         2: { halign: "center" },
         3: { halign: "right", fontStyle: "bold" },
@@ -2552,7 +2625,7 @@ async function exportPDFRekap(isAdmin) {
       `rekap-${namaBulan[bulan]}-${tahun}-${cabNama.toLowerCase().replace(/\s+/g, "-")}.pdf`,
     );
   } catch (e) {
-    alert("Gagal export PDF: " + e.message);
+    toastErr("Gagal export PDF: " + e.message);
   }
 }
 
@@ -2691,6 +2764,22 @@ async function hapusLog() {
    ================================================ */
 let riwayatPage = 1;
 
+function goRiwayatPage(page) {
+  const tgl =
+    $("riwayat-tgl")?.value ||
+    (() => {
+      const d = new Date();
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0")
+      );
+    })();
+  loadRiwayatPage(page, tgl);
+}
+
 async function loadRiwayat() {
   const tgl =
     $("riwayat-tgl")?.value ||
@@ -2731,7 +2820,7 @@ async function loadRiwayatPage(page, tgl) {
     // Ambil transaksi masuk & pengeluaran sekaligus
     const [resTrx, resKel] = await Promise.all([
       api(
-        `${BASE_URL}/api/transaksi.php?tanggal=${tanggal}&page=${page}&per_page=${PER_PAGE}`,
+        `${BASE_URL}/api/transaksi.php?tanggal=${tanggal}&page=${page}&per_page=${RIWAYAT_PER_PAGE}`,
       ),
       api(`${BASE_URL}/api/pengeluaran.php?tanggal=${tanggal}`),
     ]);
@@ -2788,7 +2877,7 @@ async function loadRiwayatPage(page, tgl) {
           .map(
             (item) =>
               `<div class="trx-row">
-          <span>${esc(item.bibit_nama)} × ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}</span>
+          <span>${esc(item.bibit_nama)} × ${item.jumlah_jual} ${esc(item.satuan_jual)}</span>
           <span>Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</span>
         </div>`,
           )
@@ -2865,7 +2954,7 @@ async function loadRiwayatPage(page, tgl) {
         ? `<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:4px 0 8px">Transaksi Masuk</div>`
         : "") +
       trxCards +
-      buildPaginationHTML(pag, `(p) => loadRiwayatPage(p, '${tanggal}')`) +
+      buildPaginationHTML(pag, "goRiwayatPage") +
       kelCards +
       emptyMsg;
   } catch (e) {
@@ -2908,9 +2997,9 @@ function buildStokTab() {
     const warn = isMl ? STOK_WARNING : 5;
     const crit = isMl ? STOK_CRITICAL : 2;
     if (v <= crit)
-      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${v} ${esc(sat)}</strong></div>`;
+      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
     else if (v <= warn)
-      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${v} ${esc(sat)}</strong></div>`;
+      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
   });
 
   return `
@@ -2987,7 +3076,7 @@ async function loadStokPage(page) {
             <div class="prog"><div class="prog-fill prog-${cls}" style="width:${pct}%"></div></div>
           </div>
           <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span>
-          <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${v} ${esc(sat)}</span>
+          <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${parseFloat(v)} ${esc(sat)}</span>
           <button class="btn btn-sm" onclick="openEditStok(${r.cabang_id},${r.bibit_id})">Edit</button>
         </div>`;
           })
@@ -3049,9 +3138,9 @@ async function simpanKeluar() {
       if ($("kel-ket")) $("kel-ket").value = "";
       if ($("kel-preview")) $("kel-preview").textContent = "Rp 0";
 
-      showKMsg(
-        "Pengeluaran berhasil dicatat: Rp " + nominal.toLocaleString("id-ID"),
-        "ok",
+      toastOk(
+        "Rp " + nominal.toLocaleString("id-ID") + " — " + nama_item,
+        "Pengeluaran Dicatat",
       );
       await loadKeluarHariIni();
     } else {
@@ -3148,9 +3237,9 @@ async function hapusKeluar(id, namaItem) {
       const tgl = $("riwayat-tgl")?.value || _today;
       await loadRiwayatPage(riwayatPage, tgl);
     } else {
-      alert("Gagal menghapus");
+      toastErr("Gagal menghapus pengeluaran");
     }
   } catch (e) {
-    alert("Error: " + e.message);
+    toastErr(e.message);
   }
 }

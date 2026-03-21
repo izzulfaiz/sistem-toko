@@ -7,6 +7,9 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+// Load config terpusat
+$appConfig = require __DIR__ . '/../config/app.php';
+
 requireLogin();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -39,6 +42,7 @@ if ($method === 'GET') {
             'cabang'    => getAllCabang(),
             'bibit'     => getAllBibit(),
             'ringkasan' => getRingkasan($cabang_id),
+            'config'    => $appConfig,
         ]);
     }
 }

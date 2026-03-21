@@ -25,7 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . ($result['role'] === 'admin' ? 'admin.php' : 'karyawan.php'));
             exit;
         } else {
-            $error = $result['message'];
+            $error   = $result['message'];
+            $locked  = $result['locked'] ?? false;
         }
     }
 }
@@ -51,10 +52,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <?php if ($error): ?>
-      <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+      <div class="<?= isset($locked) && $locked ? 'alert alert-danger' : 'alert alert-warn' ?>"
+        style="font-size:12px;text-align:center">
+        <?= isset($locked) && $locked ? '🔒 ' : '⚠️ ' ?><?= htmlspecialchars($error) ?>
+      </div>
     <?php endif; ?>
 
     <form method="POST" action="index.php">
+      <?php if (isset($_GET['timeout'])): ?>
+      <div style="background:#FFF8E1;border:0.5px solid #F59E0B;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#92400E;text-align:center">
+        ⏱️ Sesi berakhir karena tidak aktif. Silakan login kembali.
+      </div>
+      <?php endif; ?>
       <div class="form-group">
         <label for="username">Username</label>
         <input type="text" id="username" name="username"
@@ -68,6 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
     </form>
+
+    
+
   </div>
 </div>
 

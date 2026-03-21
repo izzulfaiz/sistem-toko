@@ -140,7 +140,7 @@ $user = currentUser();
     <div class="form-group"><label>Nama Lengkap</label><input type="text" id="mu-nama" placeholder="Nama lengkap"/></div>
     <div class="form-group"><label>Username</label><input type="text" id="mu-user" placeholder="username"/></div>
     <div class="form-group">
-      <label>Password <span id="mu-hint" style="font-weight:400;color:var(--text2)"></span></label>
+      <label>Password <span id="mu-pass-hint" style="font-weight:400;color:var(--text2)"></span></label>
       <input type="password" id="mu-pass" placeholder="Password (min. 6 karakter)"/>
     </div>
     <div class="form-group">
@@ -246,5 +246,6 @@ $user = currentUser();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="assets/app.js"></script>
 
+<div id="toast-container"></div>
 </body>
 </html>

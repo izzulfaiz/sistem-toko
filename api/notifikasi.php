@@ -6,6 +6,9 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+// Load config terpusat
+$appConfig = require __DIR__ . '/../config/app.php';
+
 requireAdmin();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -20,8 +23,8 @@ if ($method === 'GET') {
         $v      = (float)$s['jumlah'];
         $sat    = $s['satuan_dasar'] ?: ($s['satuan'] ?: 'ml');
         $isMl   = in_array($sat, ['ml','liter','gram','kg']);
-        $batas_kritis = $isMl ? 40 : 2;
-        $batas_rendah = $isMl ? 70 : 5;
+        $batas_kritis = $isMl ? $appConfig['stok_critical'] : $appConfig['stok_critical_pcs'];
+        $batas_rendah = $isMl ? $appConfig['stok_warning']  : $appConfig['stok_warning_pcs'];
 
         if ($v <= $batas_kritis) $tipe = 'kritis';
         elseif ($v <= $batas_rendah) $tipe = 'rendah';

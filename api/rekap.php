@@ -47,14 +47,32 @@ if ($method === 'GET') {
     foreach ($omzet_harian as $row) {
         $omzet_map[$row['tanggal']] = $row;
     }
+    // Query pengeluaran harian untuk grafik laba
+    $stmt_kel_harian = $db->prepare("
+        SELECT DATE(created_at) AS tanggal, SUM(nominal) AS total_keluar
+        FROM pengeluaran
+        WHERE created_at BETWEEN ? AND ?
+        " . ($cabang_id ? "AND cabang_id = $cabang_id" : "") . "
+        GROUP BY DATE(created_at)
+    ");
+    $stmt_kel_harian->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
+    $kel_map = [];
+    foreach ($stmt_kel_harian->fetchAll() as $row) {
+        $kel_map[$row['tanggal']] = (float)$row['total_keluar'];
+    }
+
     $grafik_labels = [];
     $grafik_omzet  = [];
     $grafik_trx    = [];
+    $grafik_laba   = [];
     for ($d = 1; $d <= $hari_dalam_bulan; $d++) {
-        $tgl = sprintf('%04d-%02d-%02d', $tahun, $bulan, $d);
+        $tgl    = sprintf('%04d-%02d-%02d', $tahun, $bulan, $d);
+        $omzet  = isset($omzet_map[$tgl]) ? (float)$omzet_map[$tgl]['omzet'] : 0;
+        $keluar = $kel_map[$tgl] ?? 0;
         $grafik_labels[] = $d;
-        $grafik_omzet[]  = isset($omzet_map[$tgl]) ? (float)$omzet_map[$tgl]['omzet'] : 0;
+        $grafik_omzet[]  = $omzet;
         $grafik_trx[]    = isset($omzet_map[$tgl]) ? (int)$omzet_map[$tgl]['jumlah_transaksi'] : 0;
+        $grafik_laba[]   = $omzet - $keluar;
     }
 
     // ---- 2. RINGKASAN PER CABANG ----
@@ -151,6 +169,7 @@ if ($method === 'GET') {
         'grafik_labels'      => $grafik_labels,
         'grafik_omzet'       => $grafik_omzet,
         'grafik_trx'         => $grafik_trx,
+        'grafik_laba'        => $grafik_laba,
         'per_cabang'         => $per_cabang,
         'produk_terlaris'    => $produk_terlaris,
         'total_omzet'        => $total_omzet_bulan,
