@@ -9,6 +9,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// ---- BASE PATH — otomatis detect lokasi instalasi ----
+if (!defined('BASE_PATH')) {
+    $docRoot = rtrim(str_replace(DIRECTORY_SEPARATOR, '/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+    $projDir = rtrim(str_replace(DIRECTORY_SEPARATOR, '/', realpath(__DIR__ . '/..')), '/');
+    $base    = str_replace($docRoot, '', $projDir);
+    define('BASE_PATH', $base === '' ? '' : $base);
+}
+
 // ---- SESSION TIMEOUT (1 jam tidak aktif) --------
 define('SESSION_TIMEOUT',   3600); // 1 jam dalam detik
 define('LOGIN_MAX_ATTEMPT', 5);    // maks percobaan login
@@ -33,7 +41,7 @@ function checkSessionTimeout(): void {
                 echo json_encode(['success' => false, 'message' => 'Sesi habis, silakan login ulang', 'timeout' => true]);
                 exit;
             }
-            header('Location: /parfum-stock/index.php?timeout=1');
+            header('Location: ' . BASE_PATH . '/index.php?timeout=1');
             exit;
         }
     }
@@ -62,7 +70,7 @@ function isKaryawan(): bool {
 // Paksa login — redirect ke index.php jika belum login
 function requireLogin(): void {
     if (!isLoggedIn()) {
-        header('Location: /parfum-stock/index.php');
+        header('Location: ' . BASE_PATH . '/index.php');
         exit;
     }
 }
@@ -79,7 +87,7 @@ function requireAdmin(): void {
             echo json_encode(['success' => false, 'message' => 'Sesi habis, silakan login ulang']);
             exit;
         }
-        header('Location: /parfum-stock/index.php');
+        header('Location: ' . BASE_PATH . '/index.php');
         exit;
     }
 
@@ -90,7 +98,7 @@ function requireAdmin(): void {
             echo json_encode(['success' => false, 'message' => 'Akses ditolak']);
             exit;
         }
-        header('Location: /parfum-stock/karyawan.php');
+        header('Location: ' . BASE_PATH . '/karyawan.php');
         exit;
     }
 }
@@ -99,7 +107,7 @@ function requireAdmin(): void {
 function requireKaryawan(): void {
     requireLogin();
     if (isAdmin()) {
-        header('Location: /parfum-stock/admin.php');
+        header('Location: ' . BASE_PATH . '/admin.php');
         exit;
     }
 }
@@ -138,10 +146,26 @@ function getRemainingLockTime(string $username, string $ip): int {
         ORDER BY attempted_at ASC LIMIT 1
     ");
     $stmt->execute([$username, $ip, $cutoff]);
-    $first = $stmt->fetchColumn();
-    if (!$first) return 0;
-    $unlockAt = strtotime($first) + LOGIN_LOCKOUT_MIN * 60;
-    return max(0, (int)ceil(($unlockAt - time()) / 60));
+    $last = $stmt->fetchColumn();
+    if (!$last) return 0;
+    $unlockAt = strtotime($last) + LOGIN_LOCKOUT_MIN * 60;
+    $remaining = $unlockAt - time();
+    return max(0, (int)ceil($remaining / 60));
+}
+
+function getRemainingLockSeconds(string $username, string $ip): int {
+    $db     = getDB();
+    $cutoff = date('Y-m-d H:i:s', time() - LOGIN_LOCKOUT_MIN * 60);
+    $stmt   = $db->prepare("
+        SELECT attempted_at FROM login_attempts
+        WHERE (username = ? OR ip_address = ?) AND attempted_at > ?
+        ORDER BY attempted_at DESC LIMIT 1
+    ");
+    $stmt->execute([$username, $ip, $cutoff]);
+    $last = $stmt->fetchColumn();
+    if (!$last) return 0;
+    $unlockAt = strtotime($last) + LOGIN_LOCKOUT_MIN * 60;
+    return max(0, (int)($unlockAt - time()));
 }
 
 // Proses login
@@ -153,11 +177,21 @@ function doLogin(string $username, string $password): array {
     $attempts = getLoginAttempts($username, $ip);
     if ($attempts >= LOGIN_MAX_ATTEMPT) {
         $remaining = getRemainingLockTime($username, $ip);
-        return [
-            'success' => false,
-            'message' => "Akun dikunci karena terlalu banyak percobaan. Coba lagi dalam {$remaining} menit.",
-            'locked'  => true,
-        ];
+        // Kalau waktu kunci sudah habis, hapus otomatis dan izinkan login
+        if ($remaining <= 0) {
+            clearLoginAttempts($username, $ip);
+        } else {
+            $msg = $remaining <= 1
+                ? "Akun dikunci. Silakan coba lagi sebentar lagi."
+                : "Akun dikunci karena terlalu banyak percobaan. Coba lagi dalam {$remaining} menit.";
+            return [
+                'success'          => false,
+                'message'          => $msg,
+                'locked'           => true,
+                'remaining'        => $remaining,
+                'remaining_seconds'=> getRemainingLockSeconds($username, $ip),
+            ];
+        }
     }
 
     $stmt = $db->prepare("
@@ -177,9 +211,11 @@ function doLogin(string $username, string $password): array {
 
         if ($sisa <= 0) {
             return [
-                'success' => false,
-                'message' => 'Akun dikunci selama ' . LOGIN_LOCKOUT_MIN . ' menit karena terlalu banyak percobaan.',
-                'locked'  => true,
+                'success'           => false,
+                'message'           => 'Akun dikunci selama ' . LOGIN_LOCKOUT_MIN . ' menit karena terlalu banyak percobaan.',
+                'locked'            => true,
+                'remaining'         => LOGIN_LOCKOUT_MIN,
+                'remaining_seconds' => LOGIN_LOCKOUT_MIN * 60,
             ];
         }
 

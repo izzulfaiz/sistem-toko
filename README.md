@@ -7,7 +7,7 @@
 ![jsPDF](https://img.shields.io/badge/jsPDF-2.5+-red?style=flat)
 ![Chart.js](https://img.shields.io/badge/Chart.js-4.4.1-FF6384?style=flat&logo=chart.js&logoColor=white)
 
-> Aplikasi web full-stack untuk mengelola stok, transaksi penjualan, dan laporan keuangan harian di beberapa cabang toko parfum secara real-time.
+> Aplikasi web full-stack untuk mengelola stok, transaksi penjualan, pengeluaran operasional, dan laporan keuangan harian di beberapa cabang toko parfum secara real-time.
 
 ---
 
@@ -26,7 +26,7 @@ Sistem ini dibangun untuk menjawab kebutuhan nyata bisnis parfum dan laundry yan
 | 🔔 Notifikasi Kritis | Alert otomatis saat stok mendekati batas minimum dengan badge lonceng |
 | 📋 Log Aktivitas | Riwayat lengkap semua perubahan stok dengan search keyword dan pagination |
 | 📄 Laporan PDF Harian | Export laporan stok + aktivitas per tanggal per cabang |
-| 📊 Rekap Bulanan | Grafik omzet harian (Chart.js), omzet per cabang, produk terlaris, laba bersih |
+| 📊 Rekap Bulanan | Grafik omzet harian, laba bersih, omzet per cabang, produk terlaris |
 | 👥 Kelola User | CRUD akun karyawan dengan role dan assignment cabang |
 | 🏪 Produk & Distribusi | Kelola produk dengan satuan fleksibel, distribusi stok antar cabang |
 
@@ -35,24 +35,32 @@ Sistem ini dibangun untuk menjawab kebutuhan nyata bisnis parfum dan laundry yan
 |---|---|
 | 🛒 Transaksi Masuk | Kasir penjualan dengan nota multi-item, searchable dropdown, konversi satuan otomatis |
 | 💸 Transaksi Keluar | Catat pengeluaran operasional harian (tidak mempengaruhi stok) |
-| 📜 Riwayat Gabungan | Transaksi masuk + keluar dalam satu tampilan dengan ringkasan laba bersih |
+| 📜 Riwayat Gabungan | Transaksi masuk + keluar dalam satu tampilan dengan ringkasan laba bersih harian |
 | ↩️ Batalkan Nota | Pembatalan transaksi hari yang sama — stok otomatis dikembalikan |
 | 🔍 Cek Stok | Lihat stok cabang sendiri dengan search dan pagination |
 | 📊 Rekap Bulanan | Ringkasan omzet, pengeluaran, dan laba bersih cabang sendiri + export PDF |
 | 🖨️ Export PDF Harian | Laporan harian gabungan masuk + keluar + ringkasan laba bersih |
+
+### 🔐 Keamanan
+| Fitur | Deskripsi |
+|---|---|
+| 🔒 Limit Login | Akun dikunci 15 menit setelah 5x salah password + countdown timer |
+| ⏱️ Session Timeout | Auto logout setelah 1 jam tidak aktif |
+| 🛡️ Role-based Access | Admin dan karyawan punya akses berbeda dan terisolasi per cabang |
+| 💉 Anti SQL Injection | Semua query menggunakan PDO prepared statements |
 
 ---
 
 ## 🛠️ Tech Stack
 
 ```
-Backend   : PHP 8+ (Native, tanpa framework) + PDO MySQL
+Backend   : PHP 8.0+ (Native, tanpa framework) + PDO MySQL
 Database  : MySQL dengan indexing untuk performa
 Frontend  : Vanilla JavaScript ES6+ (tanpa framework)
 PDF       : jsPDF + jsPDF-AutoTable
 Chart     : Chart.js 4.4.1
 Styling   : CSS3 Custom Properties (tanpa framework CSS)
-Auth      : PHP Session-based authentication
+Auth      : PHP Session-based + login attempt limiting
 ```
 
 > **Kenapa tanpa framework?**
@@ -68,23 +76,26 @@ parfum-stock/
 │   ├── log.php               # Log aktivitas stok
 │   ├── notifikasi.php        # Notifikasi stok kritis
 │   ├── pengeluaran.php       # Transaksi keluar
-│   ├── rekap.php             # Rekap bulanan
+│   ├── rekap.php             # Rekap bulanan + grafik laba
 │   ├── stok.php              # CRUD stok + pagination
 │   ├── transaksi.php         # Transaksi penjualan
 │   └── users.php             # Manajemen user & produk
 ├── assets/
-│   ├── app.js                # ~2500 baris JS (semua logic frontend)
+│   ├── app.js                # ~3000+ baris JS (semua logic frontend)
 │   ├── logo.png              # Logo Mekar Wangi
-│   └── style.css             # ~800 baris CSS custom
+│   └── style.css             # ~1000+ baris CSS custom
 ├── config/
+│   ├── app.php               # Konfigurasi terpusat (threshold stok, nama toko)
 │   └── database.php          # Koneksi DB (tidak di-repo)
 ├── includes/
-│   ├── auth.php              # Session & role check
+│   ├── auth.php              # Session, role check, login limit, timeout
 │   └── functions.php         # Query functions + pagination helpers
 ├── admin.php                 # Dashboard admin (SPA-like)
-├── index.php                 # Halaman login
+├── index.php                 # Halaman login + countdown timer
 ├── karyawan.php              # Dashboard karyawan (SPA-like)
-└── logout.php
+├── logout.php
+├── database_full.sql         # Schema + semua migration (1 file)
+└── reset_transaksi.sql       # Reset data transaksi saja (untuk deploy)
 ```
 
 ---
@@ -105,13 +116,9 @@ cd parfum-stock
 
 **2. Setup database**
 
-Buka phpMyAdmin → buat database `parfum_stock` → import file SQL secara berurutan:
+Buka phpMyAdmin → buat database `parfum_stock` → import:
 ```
-1. database.sql
-2. migration.sql
-3. migration_notif.sql
-4. migration_pengeluaran.sql
-5. migration_index.sql
+database_full.sql  (1 file sudah berisi semua)
 ```
 
 **3. Buat file konfigurasi database**
@@ -139,6 +146,29 @@ http://localhost/parfum-stock/
 
 ---
 
+## 🔧 Konfigurasi
+
+Semua konfigurasi utama ada di **`config/app.php`** — cukup edit 1 file:
+
+```php
+return [
+    'toko_nama'          => 'Mekar Wangi System',
+    'stok_warning'       => 70,   // batas kuning (ml/gram/liter)
+    'stok_critical'      => 40,   // batas merah (ml/gram/liter)
+    'stok_warning_pcs'   => 5,    // batas kuning (pcs/botol)
+    'stok_critical_pcs'  => 2,    // batas merah (pcs/botol)
+];
+```
+
+Untuk durasi session dan limit login, edit di **`includes/auth.php`**:
+```php
+define('SESSION_TIMEOUT',   3600); // timeout dalam detik (1 jam)
+define('LOGIN_MAX_ATTEMPT', 5);    // maks percobaan login
+define('LOGIN_LOCKOUT_MIN', 15);   // lama kunci dalam menit
+```
+
+---
+
 ## 🗃️ Database Schema
 
 | Tabel | Fungsi |
@@ -152,33 +182,22 @@ http://localhost/parfum-stock/
 | `pengeluaran` | Pengeluaran operasional per cabang |
 | `log_aktivitas` | Riwayat semua perubahan stok |
 | `notifikasi` | Notifikasi stok kritis in-app |
-
----
-
-## 🔐 Keamanan
-
-- Password di-hash menggunakan `bcrypt` (PHP `password_hash`)
-- Query menggunakan PDO prepared statements (anti SQL injection)
-- Role-based access control (Admin vs Karyawan)
-- Transaksi hanya bisa dibatalkan di hari yang sama (anti manipulasi)
-- File konfigurasi database tidak di-push ke repository (`.gitignore`)
+| `login_attempts` | Riwayat percobaan login (untuk limit) |
 
 ---
 
 ## 📈 Pengembangan Selanjutnya
 
-- [ ] Session timeout otomatis
-- [ ] Limit percobaan login (brute force protection)
+- [ ] Deploy ke hosting + HTTPS
 - [ ] Notifikasi WhatsApp via API
 - [ ] Admin bisa batalkan transaksi lama
-- [ ] Config threshold stok terpusat
-- [ ] Deploy ke hosting + HTTPS
+- [ ] Sorting produk terlaris (by frekuensi vs omzet)
 
 ---
 
 ## 👨‍💻 Developer
 
-**Izzul Faiz**  
+**Izzul Faiz**
 GitHub: [@izzulfaiz](https://github.com/izzulfaiz)
 
 ---
