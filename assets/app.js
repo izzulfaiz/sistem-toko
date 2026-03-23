@@ -1,13 +1,9 @@
-/* ================================================
-   PARFUM STOCK SYSTEM — app.js (clean rewrite)
-   ================================================ */
-
 const STOK_WARNING = 70;
 const STOK_CRITICAL = 40;
 const STOK_MAX = 1000;
 const TOKO_NAMA = "Mekar Wangi System";
 
-// ---- Pagination per halaman (ubah sesuai kebutuhan) ----
+// ---- Pagination per halaman
 // const PER_PAGE         = 25;  // sudah di bawah (log & stok admin)
 const RIWAYAT_PER_PAGE = 10; // riwayat transaksi karyawan
 
@@ -752,7 +748,7 @@ const PRODUK_PER_PAGE = 25;
 
 function buildProdukTab() {
   // Render struktur utama — list produk diisi terpisah via renderProdukList()
-  // sehingga input pencarian tidak kehilangan fokus saat mengetik
+
   const cabList = cabangData
     .map(
       (c) => `
@@ -1771,7 +1767,7 @@ async function exportPDFKaryawan() {
     doc.setTextColor(136, 135, 128);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text("Parfum Stock System — Laporan Harian", M, 293);
+    doc.text(TOKO_NAMA + "— Laporan Harian", M, 293);
     doc.text("Hal " + i + "/" + total, W - M, 293, { align: "right" });
   }
 

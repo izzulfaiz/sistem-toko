@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login — Parfum Stock System</title>
+  <title>Login — Mekar Wangi System</title>
   <link rel="stylesheet" href="assets/style.css"/>
 </head>
 <body class="page-login">
@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="login-box">
 
     <div class="login-logo">
-      <img src="assets/logo.png" alt="Mekar Wangi"
-        style="width:90px;height:90px;object-fit:contain;border-radius:16px;background:#3D52A0;padding:8px;margin-bottom:12px"/>
+      <img src="assets/mw-removebg-preview.png" alt="Mekar Wangi"
+        style="width: 120px;height:auto;object-fit:contain;border-radius:16px;padding:8px;margin-bottom:12px"/>
       <h1 class="login-title">Mekar Wangi System</h1>
       <p class="login-sub">Masuk untuk melanjutkan</p>
     </div>
@@ -126,8 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
     </form>
 
-    <!-- HAPUS BAGIAN INI sebelum digunakan sungguhan -->
-    
 
   </div>
 </div>
