@@ -1771,7 +1771,7 @@ async function exportPDFKaryawan() {
     doc.text("Hal " + i + "/" + total, W - M, 293, { align: "right" });
   }
 
-  doc.save(`laporan-harian-${CURRENT_USER.cabang_nama || "cabang"}-${tgl}.pdf`);
+  doc.save(`Laporan-Harian-${CURRENT_USER.cabang_nama || "cabang"}-${tgl}.pdf`);
 }
 
 let kStokPage = 1;
