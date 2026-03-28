@@ -20,7 +20,7 @@ if (!defined('BASE_PATH')) {
 // ---- SESSION TIMEOUT (1 jam tidak aktif) --------
 define('SESSION_TIMEOUT',   3600); // 1 jam dalam detik
 define('LOGIN_MAX_ATTEMPT', 5);    // maks percobaan login
-define('LOGIN_LOCKOUT_MIN', 1);   // lama kunci dalam menit
+define('LOGIN_LOCKOUT_MIN', 5);   // lama kunci dalam menit
 
 function checkSessionTimeout(): void {
     if (!isset($_SESSION['user_id'])) return;

@@ -1,6 +1,6 @@
 const STOK_WARNING = 70;
 const STOK_CRITICAL = 40;
-const STOK_MAX = 1000;
+const STOK_MAX = 500;
 const TOKO_NAMA = "Mekar Wangi System";
 
 // ---- Pagination per halaman
