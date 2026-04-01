@@ -210,7 +210,7 @@ function buildStokTab() {
     const warn = isMl ? STOK_WARNING : 5;
     const crit = isMl ? STOK_CRITICAL : 2;
     if (v <= crit)
-      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
+      alerts += `<div class="alert alert-danger">Menipis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
     else if (v <= warn)
       alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
   });
@@ -233,7 +233,7 @@ function buildStokTab() {
           <div class="stock-name">${esc(r.bibit_nama)}</div>
           <div class="prog"><div class="prog-fill prog-${cls}" style="width:${pct}%"></div></div>
         </div>
-        <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span>
+        <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Menipis"}</span>
         <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${parseFloat(v)} ${esc(sat)}</span>
         <button class="btn btn-sm" onclick="openEditStok(${c.id},${r.bibit_id})">Edit</button>
       </div>`;
@@ -372,7 +372,7 @@ function renderRpStokPage(page) {
       const warn = isMl ? STOK_WARNING : 5;
       const cls =
         v < crit ? "status-crit" : v < warn ? "status-low" : "status-ok";
-      const lbl = v < crit ? "Kritis" : v < warn ? "Rendah" : "OK";
+      const lbl = v < crit ? "Menipis" : v < warn ? "Rendah" : "OK";
       return `<tr>
       <td>${esc(r.cabang_nama)}</td>
       <td>${esc(r.bibit_nama)}</td>
@@ -466,7 +466,7 @@ function buildReportHTML(tgl, cab_id, data) {
         <div class="rp-summary-item"><div class="rp-summary-val" style="color:var(--red)">${data.total_kurang || 0}</div><div class="rp-summary-lbl">Berkurang</div></div>
         <div class="rp-summary-item"><div class="rp-summary-val" style="color:var(--teal)">${data.total_tambah || 0}</div><div class="rp-summary-lbl">Ditambah</div></div>
         <div class="rp-summary-item"><div class="rp-summary-val">${logs.length}</div><div class="rp-summary-lbl">Transaksi</div></div>
-        <div class="rp-summary-item"><div class="rp-summary-val" style="color:var(--red)">${stokKritis}</div><div class="rp-summary-lbl">Kritis</div></div>
+        <div class="rp-summary-item"><div class="rp-summary-val" style="color:var(--red)">${stokKritis}</div><div class="rp-summary-lbl">Menipis</div></div>
         <div class="rp-summary-item"><div class="rp-summary-val" style="color:var(--amber)">${stokRendah}</div><div class="rp-summary-lbl">Rendah</div></div>
       </div>
     </div>
@@ -574,7 +574,7 @@ async function exportPDF() {
       color: [15, 110, 86],
     },
     { label: "Transaksi", val: logs.length + "", color: [24, 95, 165] },
-    { label: "Kritis", val: stokKritis + "", color: [163, 45, 45] },
+    { label: "Menipis", val: stokKritis + "", color: [163, 45, 45] },
     { label: "Rendah", val: stokRendah + "", color: [46, 125, 50] },
   ];
   const bw = (W - M * 2 - 10) / 6;
@@ -654,7 +654,7 @@ async function exportPDF() {
       r.bibit_nama,
       parseFloat(r.jumlah) + (r.satuan_dasar || r.satuan || ""),
       r.jumlah < STOK_CRITICAL
-        ? "Kritis"
+        ? "Menipis"
         : r.jumlah < STOK_WARNING
           ? "Rendah"
           : "OK",
@@ -672,7 +672,7 @@ async function exportPDF() {
       if (d.section === "body" && d.column.index === 3) {
         d.cell.styles.fontStyle = "bold";
         d.cell.styles.textColor =
-          d.cell.raw === "Kritis"
+          d.cell.raw === "Menipis"
             ? [163, 45, 45]
             : d.cell.raw === "Rendah"
               ? [46, 125, 50]
@@ -812,9 +812,12 @@ function buildProdukTab() {
   const cabList = cabangData
     .map(
       (c) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border)">
-      <span style="font-size:13px">${esc(c.nama)}</span>
-      <button class="btn btn-sm btn-danger" onclick="deleteProduk('cabang',${c.id})">Hapus</button>
+    <div id="cabang-row-${c.id}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border);gap:8px">
+      <span id="cabang-label-${c.id}" style="font-size:13px;flex:1">${esc(c.nama)}</span>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-sm btn-teal" onclick="editInlineCabang(${c.id},'${esc(c.nama)}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduk('cabang',${c.id})">Hapus</button>
+      </div>
     </div>`,
     )
     .join("");
@@ -876,12 +879,15 @@ function renderProdukList() {
     ? paged
         .map(
           (b) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border)">
-        <div>
+      <div id="bibit-row-${b.id}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--border);gap:8px">
+        <div style="flex:1">
           <span style="font-size:13px;font-weight:500">${esc(b.nama)}</span>
           <span style="font-size:11px;color:var(--text2);margin-left:5px">[${esc(b.satuan_dasar || b.satuan || "ml")}]</span>
         </div>
-        <button class="btn btn-sm btn-danger" onclick="deleteProduk('bibit',${b.id})">Hapus</button>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm btn-teal" onclick="editInlineBibit(${b.id},'${esc(b.nama)}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteProduk('bibit',${b.id})">Hapus</button>
+        </div>
       </div>`,
         )
         .join("")
@@ -1219,6 +1225,88 @@ async function saveCabang() {
     renderAdminContent();
   } catch (e) {
     alert(e.message);
+  }
+}
+
+function editInlineCabang(id, namaLama) {
+  const row = document.getElementById("cabang-row-" + id);
+  if (!row) return;
+  row.innerHTML = `
+    <input type="text" id="edit-cabang-input-${id}" value="${esc(namaLama)}"
+      style="flex:1;font-size:13px;padding:5px 8px;border:1px solid var(--amber);border-radius:6px;outline:none"
+      onkeydown="if(event.key==='Enter') simpanEditCabang(${id}); if(event.key==='Escape') renderAdminContent();"/>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn btn-sm btn-primary" onclick="simpanEditCabang(${id})">Simpan</button>
+      <button class="btn btn-sm" onclick="renderAdminContent()">Batal</button>
+    </div>`;
+  document.getElementById("edit-cabang-input-" + id)?.focus();
+}
+
+async function simpanEditCabang(id) {
+  const input = document.getElementById("edit-cabang-input-" + id);
+  const nama = input?.value.trim();
+  if (!nama) {
+    toastWarn("Nama cabang tidak boleh kosong");
+    return;
+  }
+  try {
+    const res = await api(BASE_URL + "/api/users.php", "PATCH", {
+      action: "edit_cabang",
+      id,
+      nama,
+    });
+    if (res.success) {
+      toastOk("Nama cabang diperbarui");
+      await loadStokData();
+      renderAdminContent();
+    } else {
+      toastErr(res.message || "Gagal menyimpan");
+    }
+  } catch (e) {
+    toastErr(e.message);
+  }
+}
+
+function editInlineBibit(id, namaLama) {
+  const wrap = document.getElementById("produk-list-wrap");
+  if (!wrap) return;
+  // Cari row berdasarkan id bibit
+  const rows = wrap.querySelectorAll("[id^='bibit-row-']");
+  const row = document.getElementById("bibit-row-" + id);
+  if (!row) return;
+  row.innerHTML = `
+    <input type="text" id="edit-bibit-input-${id}" value="${esc(namaLama)}"
+      style="flex:1;font-size:13px;padding:5px 8px;border:1px solid var(--amber);border-radius:6px;outline:none"
+      onkeydown="if(event.key==='Enter') simpanEditBibit(${id}); if(event.key==='Escape') renderProdukList();"/>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn btn-sm btn-primary" onclick="simpanEditBibit(${id})">Simpan</button>
+      <button class="btn btn-sm" onclick="renderProdukList()">Batal</button>
+    </div>`;
+  document.getElementById("edit-bibit-input-" + id)?.focus();
+}
+
+async function simpanEditBibit(id) {
+  const input = document.getElementById("edit-bibit-input-" + id);
+  const nama = input?.value.trim();
+  if (!nama) {
+    toastWarn("Nama produk tidak boleh kosong");
+    return;
+  }
+  try {
+    const res = await api(BASE_URL + "/api/users.php", "PATCH", {
+      action: "edit_bibit",
+      id,
+      nama,
+    });
+    if (res.success) {
+      toastOk("Nama produk diperbarui");
+      await loadStokData();
+      renderProdukList();
+    } else {
+      toastErr(res.message || "Gagal menyimpan");
+    }
+  } catch (e) {
+    toastErr(e.message);
   }
 }
 
@@ -1902,7 +1990,7 @@ function renderKaryawanStokPage() {
       <td>${esc(r.bibit_nama)}</td>
       <td><strong style="color:${v <= warn ? "var(--red)" : "var(--teal)"}">${v}</strong></td>
       <td>${esc(sat)}</td>
-      <td><span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span></td>
+      <td><span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Menipis"}</span></td>
     </tr>`;
     })
     .join("");
@@ -1991,8 +2079,8 @@ function renderNotifList(notifs) {
         minute: "2-digit",
       });
       const pesanTipe =
-        n.tipe === "kritis"
-          ? `Stok kritis! Hanya tersisa ${parseFloat(n.jumlah)} ${n.satuan}`
+        n.tipe === "menipis"
+          ? `Stok menipis! Hanya tersisa ${parseFloat(n.jumlah)} ${n.satuan}`
           : `Stok rendah, tersisa ${parseFloat(n.jumlah)} ${n.satuan}`;
 
       return `<div class="notif-item unread" onclick="bacaNotif(${n.id})">
@@ -2001,7 +2089,7 @@ function renderNotifList(notifs) {
         <div class="notif-item-title">${esc(n.bibit_nama)} — ${esc(n.cabang_nama)}</div>
         <div class="notif-item-meta">${pesanTipe} · ${waktu}</div>
       </div>
-      <span class="notif-item-badge notif-badge-${n.tipe}">${n.tipe === "kritis" ? "Kritis" : "Rendah"}</span>
+      <span class="notif-item-badge notif-badge-${n.tipe}">${n.tipe === "menipis" ? "Menipis" : "Rendah"}</span>
     </div>`;
     })
     .join("");
@@ -3267,7 +3355,7 @@ async function loadStokPage(page) {
             <div class="stock-name">${esc(r.bibit_nama)}</div>
             <div class="prog"><div class="prog-fill prog-${cls}" style="width:${pct}%"></div></div>
           </div>
-          <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Kritis"}</span>
+          <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Menipis"}</span>
           <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${parseFloat(v)} ${esc(sat)}</span>
           <button class="btn btn-sm" onclick="openEditStok(${r.cabang_id},${r.bibit_id})">Edit</button>
         </div>`;
