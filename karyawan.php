@@ -111,11 +111,11 @@ $user = currentUser();
 <div class="k-tabs">
   <button class="k-tab-btn active" id="ktab-btn-transaksi" onclick="kTab('transaksi')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59L5.25 14c-.16.28-.25.61-.25.96C5 16.1 5.9 17 7 17h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0023.46 4H5.21l-.94-2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-    <span class="k-tab-label">Masuk</span>
+    <span class="k-tab-label">Pemasukan</span>
   </button>
   <button class="k-tab-btn" id="ktab-btn-keluar" onclick="kTab('keluar')">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v3l-4-4 4-4v3h5v2zm4-9H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
-    <span class="k-tab-label">Keluar</span>
+    <span class="k-tab-label">Pengeluaran</span>
   </button>
   <button class="k-tab-btn" id="ktab-btn-riwayat" onclick="kTab('riwayat')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>

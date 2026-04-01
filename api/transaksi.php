@@ -44,7 +44,12 @@ if ($method === 'POST') {
 
     // Validasi tiap item
     foreach ($items as $i => $item) {
-        if (empty($item['bibit_id']) || empty($item['jumlah_jual']) || empty($item['harga_satuan'])) {
+        if (
+    !isset($item['bibit_id']) ||
+    !isset($item['jumlah_jual']) ||
+    !isset($item['harga_satuan'])
+) {
+
             jsonResponse(['success' => false, 'message' => "Item ke-" . ($i+1) . " tidak lengkap"], 400);
         }
         if ((float)$item['jumlah_jual'] <= 0) {

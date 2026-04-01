@@ -76,14 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.querySelector('.btn-primary');
 
               if (sisa <= 0) {
-                // Sudah tidak terkunci — jangan tampilkan apa-apa, biarkan form normal
                 el.textContent = '';
               } else {
-                // Masih terkunci — disable tombol dan jalankan countdown
                 if (btn) btn.disabled = true;
                 function update() {
                   if (sisa <= 0) {
-                    // Sembunyikan pesan merah, tampilkan pesan hijau
                     var alertBox = el.closest('.alert-danger');
                     if (!alertBox) alertBox = document.querySelector('.alert-danger');
                     if (alertBox) alertBox.style.display = 'none';
@@ -120,15 +117,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password"
-               placeholder="Masukkan password" autocomplete="current-password" required/>
+        <div style="position:relative">
+          <input type="password" id="password" name="password"
+                 placeholder="Masukkan password" autocomplete="current-password" required
+                 style="padding-right:42px;width:100%;box-sizing:border-box"/>
+          <button type="button" onclick="togglePassword()"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--text2);display:flex;align-items:center"
+                  title="Tampilkan/sembunyikan password">
+            <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
     </form>
 
-
   </div>
 </div>
+
+<script>
+function togglePassword() {
+  const input = document.getElementById('password');
+  const icon  = document.getElementById('eye-icon');
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
+  // Ganti ikon: mata terbuka / mata tercoret
+  icon.innerHTML = show
+    ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+       <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+       <line x1="1" y1="1" x2="23" y2="23"/>`
+    : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+       <circle cx="12" cy="12" r="3"/>`;
+}
+</script>
 
 </body>
 </html>

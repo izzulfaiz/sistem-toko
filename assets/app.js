@@ -1,5 +1,5 @@
-const STOK_WARNING = 70;
-const STOK_CRITICAL = 40;
+const STOK_WARNING = 50;
+const STOK_CRITICAL = 10;
 const STOK_MAX = 500;
 const TOKO_NAMA = "Mekar Wangi System";
 
@@ -332,6 +332,10 @@ function buildLaporanTab() {
   </div><div id="report-preview"></div>`;
 }
 
+let rpStokPage = 1;
+const RP_STOK_PER_PAGE = 20;
+let rpFilteredStokCache = [];
+
 async function renderPreview() {
   const tgl = $("rp-tgl")?.value;
   const cab_id = $("rp-cabang")?.value;
@@ -341,10 +345,73 @@ async function renderPreview() {
     const url = `${BASE_URL}/api/log.php?tanggal=${tgl}${cab_id !== "all" ? "&cabang_id=" + cab_id : ""}`;
     const data = await api(url);
     preview.innerHTML = buildReportHTML(tgl, cab_id, data);
+    setTimeout(() => renderRpStokPage(1), 30);
   } catch (e) {
     preview.innerHTML =
       '<div class="alert alert-danger">Gagal memuat laporan</div>';
   }
+}
+
+function renderRpStokPage(page) {
+  rpStokPage = page;
+  const tableEl = $("rp-stok-table");
+  const pagEl = $("rp-stok-pagination");
+  if (!tableEl || !pagEl) return;
+
+  const total = rpFilteredStokCache.length;
+  const totalPages = Math.ceil(total / RP_STOK_PER_PAGE);
+  const from = (page - 1) * RP_STOK_PER_PAGE;
+  const slice = rpFilteredStokCache.slice(from, from + RP_STOK_PER_PAGE);
+
+  const rows = slice
+    .map((r) => {
+      const v = parseFloat(r.jumlah);
+      const sat = r.satuan_dasar || r.satuan || "ml";
+      const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+      const crit = isMl ? STOK_CRITICAL : 2;
+      const warn = isMl ? STOK_WARNING : 5;
+      const cls =
+        v < crit ? "status-crit" : v < warn ? "status-low" : "status-ok";
+      const lbl = v < crit ? "Kritis" : v < warn ? "Rendah" : "OK";
+      return `<tr>
+      <td>${esc(r.cabang_nama)}</td>
+      <td>${esc(r.bibit_nama)}</td>
+      <td style="text-align:right"><strong>${v} ${esc(sat)}</strong></td>
+      <td style="text-align:center"><span class="${cls}">${lbl}</span></td>
+    </tr>`;
+    })
+    .join("");
+
+  tableEl.innerHTML = `<div style="overflow-x:auto"><table class="rp-table">
+    <thead><tr><th>Cabang</th><th>Produk</th><th style="text-align:right">Stok</th><th style="text-align:center">Status</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#888;padding:16px">Tidak ada data</td></tr>'}</tbody>
+  </table></div>`;
+
+  if (totalPages <= 1) {
+    pagEl.innerHTML = "";
+    return;
+  }
+
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, start + 4);
+  let btnPages = "";
+  for (let i = start; i <= end; i++) {
+    btnPages += `<button class="page-btn ${i === page ? "active" : ""}"
+      onclick="renderRpStokPage(${i})" ${i === page ? "disabled" : ""}>${i}</button>`;
+  }
+
+  pagEl.innerHTML = `<div class="pagination" style="margin-top:10px">
+    <div class="pagination-info">Menampilkan ${from + 1}–${Math.min(from + RP_STOK_PER_PAGE, total)} dari ${total} produk</div>
+    <div class="pagination-btns">
+      <button class="page-btn" onclick="renderRpStokPage(${page - 1})" ${page <= 1 ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      ${btnPages}
+      <button class="page-btn" onclick="renderRpStokPage(${page + 1})" ${page >= totalPages ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
+  </div>`;
 }
 
 function buildReportHTML(tgl, cab_id, data) {
@@ -362,15 +429,21 @@ function buildReportHTML(tgl, cab_id, data) {
       : cabangData.find((c) => c.id == cab_id)?.nama || "";
   const filteredStok =
     cab_id === "all" ? stokData : stokData.filter((r) => r.cabang_id == cab_id);
+  rpFilteredStokCache = filteredStok;
+  rpStokPage = 1;
   const totalStok = filteredStok.reduce((s, r) => s + parseFloat(r.jumlah), 0);
-  const stokKritis = filteredStok.filter(
-    (r) => parseFloat(r.jumlah) < STOK_CRITICAL,
-  ).length;
-  const stokRendah = filteredStok.filter(
-    (r) =>
-      parseFloat(r.jumlah) >= STOK_CRITICAL &&
-      parseFloat(r.jumlah) < STOK_WARNING,
-  ).length;
+  const stokKritis = filteredStok.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    return parseFloat(r.jumlah) < (isMl ? STOK_CRITICAL : 2);
+  }).length;
+  const stokRendah = filteredStok.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    const crit = isMl ? STOK_CRITICAL : 2;
+    const warn = isMl ? STOK_WARNING : 5;
+    return parseFloat(r.jumlah) >= crit && parseFloat(r.jumlah) < warn;
+  }).length;
 
   const actRows = logs.length
     ? logs
@@ -382,24 +455,6 @@ function buildReportHTML(tgl, cab_id, data) {
         })
         .join("")
     : `<tr><td colspan="7" style="text-align:center;color:#888;padding:16px">Tidak ada aktivitas</td></tr>`;
-
-  const stokRows = filteredStok
-    .map((r) => {
-      const v = parseFloat(r.jumlah);
-      const sat = r.satuan_dasar || r.satuan || "ml";
-      const cls =
-        v < STOK_CRITICAL
-          ? "status-crit"
-          : v < STOK_WARNING
-            ? "status-low"
-            : "status-ok";
-      const lbl =
-        v < STOK_CRITICAL ? "Kritis" : v < STOK_WARNING ? "Rendah" : "OK";
-      return `<tr><td>${esc(r.cabang_nama)}</td><td>${esc(r.bibit_nama)}</td>
-      <td style="text-align:right"><strong>${parseFloat(v)} ${esc(sat)}</strong></td>
-      <td style="text-align:center"><span class="${cls}">${lbl}</span></td></tr>`;
-    })
-    .join("");
 
   return `<div class="report-preview">
     <div class="rp-header"><h1>${esc(TOKO_NAMA)}</h1><p>Laporan Stok Harian — ${esc(tglStr)}</p>
@@ -423,11 +478,12 @@ function buildReportHTML(tgl, cab_id, data) {
       </table></div>
     </div>
     <div class="rp-section">
-      <div class="rp-section-title">Kondisi Stok</div>
-      <div style="overflow-x:auto"><table class="rp-table">
-        <thead><tr><th>Cabang</th><th>Produk</th><th style="text-align:right">Stok</th><th style="text-align:center">Status</th></tr></thead>
-        <tbody>${stokRows}</tbody>
-      </table></div>
+      <div class="rp-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Kondisi Stok</span>
+        <span style="font-size:12px;font-weight:400;color:var(--text2)">${filteredStok.length} produk</span>
+      </div>
+      <div id="rp-stok-table"></div>
+      <div id="rp-stok-pagination"></div>
     </div>
   </div>`;
 }
@@ -455,14 +511,18 @@ async function exportPDF() {
   const filteredStok =
     cab_id === "all" ? stokData : stokData.filter((r) => r.cabang_id == cab_id);
   const totalStok = filteredStok.reduce((s, r) => s + parseFloat(r.jumlah), 0);
-  const stokKritis = filteredStok.filter(
-    (r) => parseFloat(r.jumlah) < STOK_CRITICAL,
-  ).length;
-  const stokRendah = filteredStok.filter(
-    (r) =>
-      parseFloat(r.jumlah) >= STOK_CRITICAL &&
-      parseFloat(r.jumlah) < STOK_WARNING,
-  ).length;
+  const stokKritis = filteredStok.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    return parseFloat(r.jumlah) < (isMl ? STOK_CRITICAL : 2);
+  }).length;
+  const stokRendah = filteredStok.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    const crit = isMl ? STOK_CRITICAL : 2;
+    const warn = isMl ? STOK_WARNING : 5;
+    return parseFloat(r.jumlah) >= crit && parseFloat(r.jumlah) < warn;
+  }).length;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -1032,7 +1092,7 @@ async function saveStokModal() {
     toastWarn("Pilih minimal 1 cabang");
     return;
   }
-  if (isNaN(jumlah) || jumlah <= 0) {
+  if (isNaN(jumlah) || jumlah < 0 || (tipe === "tambah" && jumlah <= 0)) {
     toastWarn("Isi jumlah yang valid");
     return;
   }
@@ -1994,6 +2054,17 @@ document.addEventListener("click", (e) => {
   }
 });
 
+function toggleAlertDetail(detailId, headerEl) {
+  const detail = $(detailId);
+  if (!detail) return;
+  const isOpen = detail.style.display !== "none";
+  detail.style.display = isOpen ? "none" : "block";
+  const chevronId =
+    detailId === "detail-kritis" ? "chevron-kritis" : "chevron-rendah";
+  const chevron = $(chevronId);
+  if (chevron) chevron.style.transform = isOpen ? "" : "rotate(180deg)";
+}
+
 /* ================================================
    REKAP BULANAN — SHARED HELPERS
    ================================================ */
@@ -2064,17 +2135,35 @@ function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
     rekapChart = null;
   }
 
+  // Filter hanya hari yang ada aktivitas
+  const activeIdx = labels.reduce((acc, _, i) => {
+    if ((trxData[i] || 0) > 0 || (omzetData[i] || 0) > 0) acc.push(i);
+    return acc;
+  }, []);
+  const fl =
+    activeIdx.length > 0
+      ? activeIdx.map((i) => labels[i] + "")
+      : labels.map((d) => d + "");
+  const fo =
+    activeIdx.length > 0 ? activeIdx.map((i) => omzetData[i] || 0) : omzetData;
+  const fla =
+    activeIdx.length > 0
+      ? activeIdx.map((i) => (labaData || omzetData)[i] || 0)
+      : labaData || omzetData;
+  const ft =
+    activeIdx.length > 0 ? activeIdx.map((i) => trxData[i] || 0) : trxData;
+
   const ctx = canvas.getContext("2d");
   rekapChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: labels.map((d) => d + ""),
+      labels: fl,
       datasets: [
         {
           label: "Omzet (Rp)",
-          data: omzetData,
-          backgroundColor: "rgba(91,110,191,0.15)",
-          borderColor: "#5B6EBF",
+          data: fo,
+          backgroundColor: "rgba(61,82,160,0.15)",
+          borderColor: "#3D52A0",
           borderWidth: 2,
           borderRadius: 4,
           yAxisID: "y",
@@ -2082,27 +2171,30 @@ function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
         },
         {
           label: "Laba Bersih (Rp)",
-          data: labaData || omzetData,
+          data: fla,
           type: "line",
-          borderColor: "#2E7D32",
-          backgroundColor: "rgba(46,125,50,0.08)",
+          borderColor: "#C2185B",
+          backgroundColor: "rgba(194,24,91,0.07)",
+          pointBackgroundColor: "#C2185B",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 1.5,
           borderWidth: 2,
           pointRadius: 3,
-          pointBackgroundColor: "#2E7D32",
           tension: 0.3,
-          fill: true,
+          fill: false,
           yAxisID: "y",
           order: 2,
         },
         {
           label: "Transaksi",
-          data: trxData,
+          data: ft,
           type: "line",
-          borderColor: "#C2185B",
-          backgroundColor: "rgba(194,24,91,0.05)",
-          borderWidth: 2,
+          borderColor: "#7986CB",
+          backgroundColor: "rgba(121,134,203,0.08)",
+          borderWidth: 1.5,
+          pointBackgroundColor: "#7986CB",
+          borderDash: [4, 3],
           pointRadius: 3,
-          pointBackgroundColor: "#C2185B",
           tension: 0.3,
           yAxisID: "y1",
           order: 1,
@@ -2119,11 +2211,16 @@ function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
           labels: { font: { size: 11 }, boxWidth: 12 },
         },
         tooltip: {
+          backgroundColor: "rgba(30,30,50,0.88)",
+          padding: 10,
           callbacks: {
-            label: (ctx) =>
-              ctx.datasetIndex === 0
-                ? " Rp " + ctx.raw.toLocaleString("id-ID")
-                : " " + ctx.raw + " transaksi",
+            title: (items) => "Tgl " + items[0].label,
+            label: (ctx) => {
+              if (ctx.datasetIndex === 2)
+                return "  Transaksi: " + ctx.raw + "x";
+              const label = ctx.dataset.label.replace(" (Rp)", "");
+              return "  " + label + ": Rp " + ctx.raw.toLocaleString("id-ID");
+            },
           },
         },
       },
@@ -2145,7 +2242,11 @@ function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
         },
         y1: {
           position: "right",
-          ticks: { font: { size: 10 }, stepSize: 1 },
+          ticks: {
+            font: { size: 10 },
+            stepSize: 1,
+            callback: (v) => (Number.isInteger(v) ? v + "x" : ""),
+          },
           grid: { display: false },
         },
       },
@@ -2768,7 +2869,7 @@ async function loadLogPage(page) {
           <div class="log-info">
             <strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)}
             ${l.tipe === "kurang" ? "berkurang" : "bertambah"}
-            <strong>${l.jumlah} ${esc(l.satuan || "")}</strong>
+            <strong>${parseFloat(l.jumlah)} ${esc(l.satuan || "")}</strong>
             ${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}
           </div>
           <div class="log-meta">Sisa: ${l.sisa} ${esc(l.satuan || "")}</div>
@@ -3030,7 +3131,10 @@ function buildStokTab() {
       )
       .join("");
 
-  let alerts = "";
+  let kritisCount = 0,
+    rendahCount = 0;
+  let kritisItems = [],
+    rendahItems = [];
   stokData.forEach((r) => {
     if (activeFilter !== "all" && r.cabang_id != activeFilter) return;
     const v = parseFloat(r.jumlah);
@@ -3038,11 +3142,57 @@ function buildStokTab() {
     const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
     const warn = isMl ? STOK_WARNING : 5;
     const crit = isMl ? STOK_CRITICAL : 2;
-    if (v <= crit)
-      alerts += `<div class="alert alert-danger">Kritis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
-    else if (v <= warn)
-      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
+    if (v < crit) {
+      kritisCount++;
+      kritisItems.push(
+        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
+      );
+    } else if (v < warn) {
+      rendahCount++;
+      rendahItems.push(
+        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
+      );
+    }
   });
+
+  let alertBanner = "";
+  if (kritisCount > 0 || rendahCount > 0) {
+    const kritisDetail = kritisItems.length
+      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7">${kritisItems.join("")}</ul>`
+      : "";
+    const rendahDetail = rendahItems.length
+      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7;color:var(--text)">${rendahItems.join("")}</ul>`
+      : "";
+    alertBanner = `
+    <div id="alert-banner" style="border-radius:10px;overflow:hidden;margin-bottom:12px">
+      ${
+        kritisCount > 0
+          ? `
+      <div class="alert alert-danger" style="margin:0 0 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+           onclick="toggleAlertDetail('detail-kritis',this)">
+        <span>🔴 <strong>${kritisCount} produk stok menipis</strong> — klik lonceng 🔔 untuk detail, atau lihat di sini</span>
+        <svg id="chevron-kritis" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div id="detail-kritis" style="display:none;background:var(--red-l,#fff0f0);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--red,#e57373);border-top:none;margin-bottom:4px">
+        ${kritisDetail}
+      </div>`
+          : ""
+      }
+      ${
+        rendahCount > 0
+          ? `
+      <div class="alert alert-warn" style="margin:0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+           onclick="toggleAlertDetail('detail-rendah',this)">
+        <span>🟡 <strong>${rendahCount} produk stok rendah</strong></span>
+        <svg id="chevron-rendah" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div id="detail-rendah" style="display:none;background:var(--warn-l,#fffbe6);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--warn,#f5c518);border-top:none">
+        ${rendahDetail}
+      </div>`
+          : ""
+      }
+    </div>`;
+  }
 
   return `
     <div class="metrics-grid">
@@ -3051,7 +3201,7 @@ function buildStokTab() {
       <div class="metric-card"><div class="metric-label">Jenis Produk</div><div class="metric-val">${bibitData.length}</div></div>
       <div class="metric-card"><div class="metric-label">Perlu Restock</div><div class="metric-val" style="color:${lowCount > 0 ? "var(--red)" : "var(--teal)"}">${lowCount}</div></div>
     </div>
-    ${alerts}
+    ${alertBanner}
     <div class="pills">${pills}</div>
     <div class="stok-search-bar">
       <input type="text" id="stok-keyword" placeholder="Cari nama produk..."

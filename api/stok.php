@@ -24,7 +24,6 @@ if ($method === 'GET') {
     $paginate  = isset($_GET['paginate']) && $_GET['paginate'] === '1';
 
     if ($paginate) {
-        // Mode paginasi — untuk tampilan stok cabang
         $result = getAllStokPaginated($cabang_id, $page, $per_page, $keyword);
         jsonResponse([
             'success'    => true,
@@ -33,9 +32,9 @@ if ($method === 'GET') {
             'bibit'      => getAllBibit(),
             'ringkasan'  => getRingkasan($cabang_id),
             'pagination' => $result['pagination'],
+            'config'     => $appConfig,
         ]);
     } else {
-        // Mode normal — ambil semua (untuk dropdown, grafik, dll)
         jsonResponse([
             'success'   => true,
             'stok'      => getAllStok($cabang_id),
@@ -82,7 +81,6 @@ if ($method === 'PUT') {
     requireAdmin();
     $body = json_decode(file_get_contents('php://input'), true);
 
-    // Support multi-cabang (cabang_ids) atau single cabang (cabang_id)
     $cabang_ids = [];
     if (!empty($body['cabang_ids']) && is_array($body['cabang_ids'])) {
         $cabang_ids = array_map('intval', $body['cabang_ids']);
@@ -99,14 +97,29 @@ if ($method === 'PUT') {
         jsonResponse(['success' => false, 'message' => 'Data tidak lengkap'], 400);
     }
 
-    // Loop semua cabang yang dipilih — jumlah sama untuk semua
     $results = [];
     foreach ($cabang_ids as $cabang_id) {
         $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
         $jumlah_baru = $tipe === 'tambah' ? $saat_ini + $jumlah : $jumlah;
-        $delta       = $tipe === 'tambah' ? $jumlah : abs($jumlah_baru - $saat_ini);
-        $ok          = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], $tipe, $delta, $ket);
-        $results[]   = $ok;
+        $delta       = abs($jumlah_baru - $saat_ini);
+
+        // ✅ Fix: tipe log ditentukan dari naik/turun, bukan dari parameter tipe
+        if ($tipe === 'tambah') {
+            $tipe_log = 'tambah';
+            $ket_log  = $ket ?: 'Tambah stok';
+        } elseif ($jumlah_baru > $saat_ini) {
+            $tipe_log = 'tambah';
+            $ket_log  = $ket ?: 'Set stok (naik dari ' . $saat_ini . ' → ' . $jumlah_baru . ')';
+        } elseif ($jumlah_baru < $saat_ini) {
+            $tipe_log = 'kurang';
+            $ket_log  = $ket ?: 'Set stok (turun dari ' . $saat_ini . ' → ' . $jumlah_baru . ')';
+        } else {
+            $tipe_log = 'tambah';
+            $ket_log  = $ket ?: 'Set stok (tidak berubah)';
+        }
+
+        $ok        = updateStok($cabang_id, $bibit_id, $jumlah_baru, $user['id'], $tipe_log, $delta, $ket_log);
+        $results[] = $ok;
     }
 
     $allOk = !in_array(false, $results);
@@ -123,7 +136,7 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     requireAdmin();
     $body   = json_decode(file_get_contents('php://input'), true);
-    $target = $body['target'] ?? '';  // 'bibit' atau 'cabang'
+    $target = $body['target'] ?? '';
     $id     = (int)($body['id'] ?? 0);
 
     if (!$id || !in_array($target, ['bibit', 'cabang'])) {

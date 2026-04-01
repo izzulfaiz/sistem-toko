@@ -7,8 +7,8 @@ return [
     'toko_nama'     => 'Mekar Wangi System',
 
     // Threshold stok (satuan dasar: ml, gram, liter, kg)
-    'stok_warning'  => 70,   // batas kuning (rendah)
-    'stok_critical' => 40,   // batas merah (kritis)
+    'stok_warning'  => 50,   // batas kuning (rendah)
+    'stok_critical' => 10,   // batas merah (kritis)
 
     // Threshold stok satuan pcs/botol/dll
     'stok_warning_pcs'  => 5,

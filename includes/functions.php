@@ -3,6 +3,8 @@
 // includes/functions.php
 // =====================================================
 
+date_default_timezone_set('Asia/Jakarta'); // ✅ Fix timezone WIB
+
 require_once __DIR__ . '/../config/database.php';
 
 function jsonResponse(array $data, int $code = 200): void {
@@ -78,7 +80,6 @@ function simpanTransaksi(int $user_id, int $cabang_id, array $items, string $cat
     try {
         $db->beginTransaction();
 
-        // Validasi stok semua item dulu
         foreach ($items as $item) {
             $bibit_id    = (int)$item['bibit_id'];
             $jumlah_stok = (float)$item['jumlah_stok'];
@@ -241,71 +242,40 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
     try {
         $db->beginTransaction();
 
-        // Ambil data transaksi
         $stmt = $db->prepare("SELECT * FROM transaksi WHERE id = ?");
         $stmt->execute([$transaksi_id]);
         $trx  = $stmt->fetch();
 
-        if (!$trx) {
-            throw new Exception('Transaksi tidak ditemukan');
-        }
+        if (!$trx) throw new Exception('Transaksi tidak ditemukan');
 
-        // Cek apakah transaksi hari ini (hanya boleh batal hari yang sama)
         $tglTrx  = date('Y-m-d', strtotime($trx['created_at']));
         $tglHari = date('Y-m-d');
-        if ($tglTrx !== $tglHari) {
-            throw new Exception('Transaksi hanya bisa dibatalkan di hari yang sama');
-        }
+        if ($tglTrx !== $tglHari) throw new Exception('Transaksi hanya bisa dibatalkan di hari yang sama');
 
-        // Cek apakah sudah dibatalkan
-        if (str_starts_with($trx['kode_nota'], 'BATAL-')) {
-            throw new Exception('Transaksi ini sudah dibatalkan');
-        }
+        if (str_starts_with($trx['kode_nota'], 'BATAL-')) throw new Exception('Transaksi ini sudah dibatalkan');
 
-        // Ambil semua item transaksi
         $stmt2 = $db->prepare("SELECT * FROM transaksi_detail WHERE transaksi_id = ?");
         $stmt2->execute([$transaksi_id]);
         $items = $stmt2->fetchAll();
 
-        // Kembalikan stok tiap item
         foreach ($items as $item) {
             $saat_ini    = getStokSaatIni($trx['cabang_id'], $item['bibit_id']);
             $jumlah_baru = $saat_ini + $item['jumlah_stok'];
 
-            // Update stok
-            $stmt3 = $db->prepare("
-                INSERT INTO stok (cabang_id, bibit_id, jumlah)
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE jumlah = ?
-            ");
+            $stmt3 = $db->prepare("INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE jumlah = ?");
             $stmt3->execute([$trx['cabang_id'], $item['bibit_id'], $jumlah_baru, $jumlah_baru]);
 
-            // Catat log pengembalian
-            $stmt4 = $db->prepare("
-                INSERT INTO log_aktivitas
-                    (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id)
-                VALUES (?, ?, ?, 'tambah', ?, ?, ?, ?)
-            ");
-            $stmt4->execute([
-                $user_id,
-                $trx['cabang_id'],
-                $item['bibit_id'],
-                $item['jumlah_stok'],
-                $jumlah_baru,
-                'Pembatalan nota #' . $trx['kode_nota'],
-                $transaksi_id
-            ]);
+            $stmt4 = $db->prepare("INSERT INTO log_aktivitas (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id) VALUES (?, ?, ?, 'tambah', ?, ?, ?, ?)");
+            $stmt4->execute([$user_id, $trx['cabang_id'], $item['bibit_id'], $item['jumlah_stok'], $jumlah_baru, 'Pembatalan nota #' . $trx['kode_nota'], $transaksi_id]);
         }
 
-        // Tandai transaksi sebagai dibatalkan (prefix kode nota)
-        $kode_batal = 'BATAL-' . $trx['kode_nota'];
+        $kode_batal   = 'BATAL-' . $trx['kode_nota'];
         $catatan_baru = 'DIBATALKAN oleh user #' . $user_id . ' pada ' . date('Y-m-d H:i:s');
         $stmt5 = $db->prepare("UPDATE transaksi SET kode_nota = ?, catatan = ? WHERE id = ?");
         $stmt5->execute([$kode_batal, $catatan_baru, $transaksi_id]);
 
         $db->commit();
         return ['success' => true, 'message' => 'Transaksi berhasil dibatalkan, stok telah dikembalikan'];
-
     } catch (Exception $e) {
         $db->rollBack();
         return ['success' => false, 'message' => $e->getMessage()];
@@ -340,19 +310,16 @@ function getLogsPaginated(?int $cabang_id = null, ?string $tanggal = null, int $
     if ($keyword)   { $where[] = "(b.nama LIKE ? OR u.nama LIKE ? OR c.nama LIKE ?)"; $k = "%$keyword%"; $params[] = $k; $params[] = $k; $params[] = $k; }
 
     $whereSQL = $where ? "WHERE " . implode(" AND ", $where) : "";
-
-    $baseSQL = "FROM log_aktivitas l
+    $baseSQL  = "FROM log_aktivitas l
         JOIN users  u ON l.user_id   = u.id
         JOIN cabang c ON l.cabang_id = c.id
         JOIN bibit  b ON l.bibit_id  = b.id
         $whereSQL";
 
-    // Hitung total
     $stmtCount = $db->prepare("SELECT COUNT(*) $baseSQL");
     $stmtCount->execute($params);
     $total = (int)$stmtCount->fetchColumn();
 
-    // Hitung total kurang/tambah
     $stmtSum = $db->prepare("SELECT tipe, SUM(l.jumlah) AS jml $baseSQL GROUP BY tipe");
     $stmtSum->execute($params);
     $sums = $stmtSum->fetchAll();
@@ -362,22 +329,20 @@ function getLogsPaginated(?int $cabang_id = null, ?string $tanggal = null, int $
         else                         $total_tambah = (float)$s['jml'];
     }
 
-    // Ambil data dengan pagination
     $offset = ($page - 1) * $per_page;
     $sql = "SELECT l.*, u.nama AS user_nama, c.nama AS cabang_nama,
                    b.nama AS bibit_nama, b.satuan_dasar AS satuan
             $baseSQL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?";
-    $paramsPage = array_merge($params, [$per_page, $offset]);
     $stmt = $db->prepare($sql);
-    $stmt->execute($paramsPage);
+    $stmt->execute(array_merge($params, [$per_page, $offset]));
 
     return [
-        'logs'        => $stmt->fetchAll(),
-        'total_kurang'=> $total_kurang,
-        'total_tambah'=> $total_tambah,
-        'pagination'  => buildPagination($total, $page, $per_page),
+        'logs'         => $stmt->fetchAll(),
+        'total_kurang' => $total_kurang,
+        'total_tambah' => $total_tambah,
+        'pagination'   => buildPagination($total, $page, $per_page),
     ];
 }
 
@@ -393,13 +358,11 @@ function getTransaksiHarianPaginated(?int $cabang_id = null, ?string $tanggal = 
     $where[] = "DATE(t.created_at) = ?"; $params[] = $tgl;
 
     $whereSQL = "WHERE " . implode(" AND ", $where);
-
-    $baseSQL = "FROM transaksi t
+    $baseSQL  = "FROM transaksi t
         JOIN users  u ON t.user_id   = u.id
         JOIN cabang c ON t.cabang_id = c.id
         $whereSQL";
 
-    // Total count & omzet
     $stmtCount = $db->prepare("SELECT COUNT(*) $baseSQL");
     $stmtCount->execute($params);
     $total = (int)$stmtCount->fetchColumn();
@@ -408,7 +371,6 @@ function getTransaksiHarianPaginated(?int $cabang_id = null, ?string $tanggal = 
     $stmtOmzet->execute($params);
     $total_omzet = (float)($stmtOmzet->fetchColumn() ?? 0);
 
-    // Data dengan pagination
     $offset = ($page - 1) * $per_page;
     $sql    = "SELECT t.*, u.nama AS user_nama, c.nama AS cabang_nama
                $baseSQL
@@ -418,7 +380,6 @@ function getTransaksiHarianPaginated(?int $cabang_id = null, ?string $tanggal = 
     $stmt->execute(array_merge($params, [$per_page, $offset]));
     $transaksis = $stmt->fetchAll();
 
-    // Ambil items per transaksi
     foreach ($transaksis as &$trx) {
         $stmt2 = $db->prepare("SELECT td.*, b.nama AS bibit_nama, b.satuan, b.satuan_dasar
                                 FROM transaksi_detail td
@@ -447,8 +408,7 @@ function getAllStokPaginated(?int $cabang_id = null, int $page = 1, int $per_pag
     if ($keyword)   { $where[] = "b.nama LIKE ?"; $params[] = "%$keyword%"; }
 
     $whereSQL = $where ? "WHERE " . implode(" AND ", $where) : "";
-
-    $baseSQL = "FROM stok s
+    $baseSQL  = "FROM stok s
         JOIN cabang c ON s.cabang_id = c.id
         JOIN bibit  b ON s.bibit_id  = b.id
         $whereSQL";
