@@ -1,7 +1,7 @@
 const STOK_WARNING = 50;
 const STOK_CRITICAL = 10;
 const STOK_MAX = 500;
-const TOKO_NAMA = "Mekar Wangi System";
+const TOKO_NAMA = "Mekar Wangi Indonesia";
 
 // ---- Pagination per halaman
 // const PER_PAGE         = 25;  // sudah di bawah (log & stok admin)
@@ -808,7 +808,7 @@ const PRODUK_PER_PAGE = 25;
 
 function buildProdukTab() {
   // Render struktur utama — list produk diisi terpisah via renderProdukList()
-
+  // 111111
   const cabList = cabangData
     .map(
       (c) => `
@@ -1670,6 +1670,128 @@ Aksi ini tidak bisa diurungkan.`)
   }
 }
 
+function printNota(t) {
+  const toko =
+    typeof TOKO_NAMA !== "undefined" ? TOKO_NAMA : "Mekar Wangi Indonesia";
+  const cabang =
+    typeof CURRENT_USER !== "undefined" ? CURRENT_USER.cabang_nama || "" : "";
+  const items = (t.items || [])
+    .map(
+      (item) =>
+        `<tr>
+      <td>${esc(item.bibit_nama)}</td>
+      <td style="text-align:center">${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}</td>
+      <td style="text-align:right">Rp ${parseFloat(item.harga_satuan).toLocaleString("id-ID")}</td>
+      <td style="text-align:right">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const total = parseFloat(t.total).toLocaleString("id-ID");
+  const waktu = t.created_at || "";
+  const catatan = t.catatan
+    ? `<div class="catatan">📝 ${esc(t.catatan)}</div>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Nota ${esc(t.kode_nota)}</title>
+  <style>
+    /* =============================================
+       PENGATURAN UKURAN KERTAS THERMAL
+       Ganti nilai di bawah sesuai printer kamu:
+       - Kertas 58mm  → width: 58mm
+       - Kertas 80mm  → width: 80mm
+       ============================================= */
+    :root {
+      --paper-width: 58mm;   /* ← UBAH DI SINI sesuai lebar kertas */
+      --font-size: 15px;     /* ← UBAH jika teks terlalu kecil/besar */
+    }
+    @page {
+      size: var(--paper-width) auto;
+      margin: 0;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Montserrat', sans-serif; font-size: var(--font-size); width: var(--paper-width); margin: 0 auto; padding: 8px; }
+    .header { text-align:center; border-bottom: 1px dashed #000; padding-bottom:8px; margin-bottom:8px; }
+    .header h2 { font-size:14px; font-weight:700; }
+    .header p { font-size:11px; color:#555; margin-top:2px; }
+    .nota-info { margin-bottom:8px; font-size:11px; }
+    .nota-info div { display:flex; justify-content:space-between; margin-bottom:2px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:8px; }
+    th { font-size:10px; border-bottom:1px solid #000; padding:3px 2px; text-align:left; }
+    td { font-size:11px; padding:3px 2px; vertical-align:top; }
+    .total-row { border-top:1px dashed #000; padding-top:6px; display:flex; justify-content:space-between; font-weight:700; font-size:13px; margin-bottom:8px; }
+    .catatan { font-size:11px; color:#555; margin-bottom:8px; }
+    .footer { text-align:center; border-top:1px dashed #000; padding-top:8px; font-size:10px; color:#777; }
+    @media print {
+      body { width:100%; }
+      button { display:none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>${esc(toko)}</h2>
+    <p>${esc(cabang)}</p>
+    <p style="margin-top:4px;font-size:10px">================================</p>
+  </div>
+  <div class="nota-info">
+    <div><span>No. Nota</span><span><b>${esc(t.kode_nota)}</b></span></div>
+    <div><span>Waktu</span><span>${esc(waktu)}</span></div>
+    <div><span>Kasir</span><span>${esc(t.user_nama || "")}</span></div>
+  </div>
+  <table>
+    <thead><tr><th>Produk</th><th style="text-align:center">Jml</th><th style="text-align:right">Harga</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${items}</tbody>
+  </table>
+  <div class="total-row">
+    <span>TOTAL</span>
+    <span>Rp ${total}</span>
+  </div>
+  ${catatan}
+  <div class="footer">
+    <p>Terima kasih atas pembelian Anda!</p>
+    <p style="margin-top:4px">${esc(toko)}</p>
+  </div>
+  <div style="text-align:center;margin-top:12px">
+    <button onclick="window.print()" style="padding:6px 20px;font-size:12px;cursor:pointer;border:1px solid #333;border-radius:4px;background:#fff">🖨️ Print</button>
+  </div>
+</body>
+</html>`;
+
+  // Gunakan iframe tersembunyi agar tidak diblokir browser mobile (HP)
+  let iframe = document.getElementById("print-nota-frame");
+  if (iframe) iframe.remove();
+
+  iframe = document.createElement("iframe");
+  iframe.id = "print-nota-frame";
+  iframe.style.cssText =
+    "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;";
+  document.body.appendChild(iframe);
+
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+
+  setTimeout(() => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      // Fallback jika iframe gagal — buka tab baru
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        setTimeout(() => win.print(), 400);
+      } else toastWarn("Tidak bisa mencetak. Coba izinkan popup di browser.");
+    }
+  }, 600);
+}
+
 async function exportPDFKaryawan() {
   const tgl =
     $("riwayat-tgl")?.value ||
@@ -1793,6 +1915,9 @@ async function exportPDFKaryawan() {
           "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID"),
         ]);
       });
+      if (t.catatan) {
+        allRows.push(["", "", "Catatan: " + t.catatan, "", "", ""]);
+      }
       allRows.push([
         "",
         "",
@@ -1827,6 +1952,15 @@ async function exportPDFKaryawan() {
         d.cell.styles.fillColor = [225, 245, 238];
         d.cell.styles.textColor = [15, 110, 86];
         d.cell.styles.fontStyle = "bold";
+      }
+      if (
+        d.section === "body" &&
+        d.column.index === 2 &&
+        String(d.cell.raw).startsWith("📝")
+      ) {
+        d.cell.styles.textColor = [100, 100, 100];
+        d.cell.styles.fontStyle = "italic";
+        d.cell.styles.fontSize = 7;
       }
     },
   });
@@ -2495,10 +2629,35 @@ async function buildRekapTab(target) {
     <div class="rekap-toolbar">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1">
         <label style="font-size:12px;color:var(--text2);font-weight:500">Cabang:</label>
-        <select id="rekap-cabang" onchange="loadRekapAdmin()" style="min-width:160px">
-          <option value="all">Semua Cabang</option>
-          ${cabangData.map((c) => `<option value="${c.id}">${esc(c.nama)}</option>`).join("")}
-        </select>
+        <div id="rekap-cabang-wrap" style="position:relative">
+  <button type="button" id="rekap-cabang-btn"
+    onclick="toggleRekapCabangDrop()"
+    style="min-width:180px;text-align:left;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+    <span id="rekap-cabang-label">Semua Cabang</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <div id="rekap-cabang-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:99;background:#fff;border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:8px;min-width:200px">
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);margin-bottom:4px">
+      <input type="checkbox" id="rekap-cab-all" checked onchange="toggleSemuaRekapCabang(this)"
+        style="width:15px;height:15px;accent-color:var(--amber)"/>
+      <strong>Semua Cabang</strong>
+    </label>
+    ${cabangData
+      .map(
+        (c) => `
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="rekap-cab-cb" value="${c.id}" checked
+        onchange="updateRekapCabangLabel()"
+        style="width:15px;height:15px;accent-color:var(--amber)"/>
+      ${esc(c.nama)}
+    </label>`,
+      )
+      .join("")}
+    <div style="margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border)">
+      <button class="btn btn-sm btn-primary" style="width:100%" onclick="loadRekapAdmin();toggleRekapCabangDrop()">Terapkan</button>
+    </div>
+  </div>
+</div>
         <label style="font-size:12px;color:var(--text2);font-weight:500">Bulan:</label>
         <select id="rekap-bulan" onchange="loadRekapAdmin()"></select>
         <select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:90px"></select>
@@ -2507,6 +2666,10 @@ async function buildRekapTab(target) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         Export PDF
       </button>
+      <button class="btn" style="background:#1D6F42;color:#fff" onclick="exportExcelRekap(true)">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+  Export Excel
+</button>
     </div>
     <div id="rekap-content" style="margin-top:14px"><div class="empty">Pilih bulan untuk melihat rekap</div></div>`;
 
@@ -2515,14 +2678,19 @@ async function buildRekapTab(target) {
 }
 
 async function loadRekapAdmin() {
-  const cab_id = document.getElementById("rekap-cabang")?.value || "all";
+  const checked = [...document.querySelectorAll(".rekap-cab-cb:checked")];
+  const allCab = document.querySelectorAll(".rekap-cab-cb").length;
+  const cab_id =
+    checked.length === allCab || checked.length === 0
+      ? "all"
+      : checked.map((cb) => cb.value).join(",");
   const { bulan, tahun } = getBulanTahun("rekap-bulan", "rekap-tahun");
   const content = document.getElementById("rekap-content");
   if (!content) return;
 
   content.innerHTML = '<div class="loading">Memuat data rekap...</div>';
   try {
-    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id !== "all" ? "&cabang_id=" + cab_id : ""}`;
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
     const data = await api(url);
 
     content.innerHTML = buildRekapHTML(data, true);
@@ -2546,6 +2714,45 @@ async function loadRekapAdmin() {
       "</div>";
   }
 }
+
+function toggleRekapCabangDrop() {
+  const drop = document.getElementById("rekap-cabang-drop");
+  if (!drop) return;
+  drop.style.display = drop.style.display === "none" ? "block" : "none";
+}
+
+function toggleSemuaRekapCabang(el) {
+  document
+    .querySelectorAll(".rekap-cab-cb")
+    .forEach((cb) => (cb.checked = el.checked));
+  updateRekapCabangLabel();
+}
+
+function updateRekapCabangLabel() {
+  const all = document.querySelectorAll(".rekap-cab-cb");
+  const checked = document.querySelectorAll(".rekap-cab-cb:checked");
+  const allCb = document.getElementById("rekap-cab-all");
+  const label = document.getElementById("rekap-cabang-label");
+  if (!label) return;
+  if (checked.length === 0) {
+    if (allCb) allCb.checked = false;
+    label.textContent = "Pilih cabang...";
+  } else if (checked.length === all.length) {
+    if (allCb) allCb.checked = true;
+    label.textContent = "Semua Cabang";
+  } else {
+    if (allCb) allCb.checked = false;
+    label.textContent = checked.length + " cabang dipilih";
+  }
+}
+
+// Tutup dropdown jika klik di luar
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#rekap-cabang-wrap")) {
+    const drop = document.getElementById("rekap-cabang-drop");
+    if (drop) drop.style.display = "none";
+  }
+});
 
 /* ================================================
    REKAP BULANAN — KARYAWAN
@@ -2581,10 +2788,15 @@ async function loadRekapKaryawan() {
 /* ================================================
    EXPORT PDF REKAP BULANAN
    ================================================ */
-async function exportPDFRekap(isAdmin) {
-  const cab_id = isAdmin
-    ? document.getElementById("rekap-cabang")?.value || "all"
-    : null;
+async function exportExcelRekap(isAdmin) {
+  const cab_id = (() => {
+    if (!isAdmin) return null;
+    const checked = [...document.querySelectorAll(".rekap-cab-cb:checked")];
+    const allCab = document.querySelectorAll(".rekap-cab-cb").length;
+    return checked.length === allCab || checked.length === 0
+      ? "all"
+      : checked.map((cb) => cb.value).join(",");
+  })();
   const bulanId = isAdmin ? "rekap-bulan" : "k-rekap-bulan";
   const tahunId = isAdmin ? "rekap-tahun" : "k-rekap-tahun";
   const { bulan, tahun } = getBulanTahun(bulanId, tahunId);
@@ -2606,7 +2818,276 @@ async function exportPDFRekap(isAdmin) {
   ];
 
   try {
-    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_id=" + cab_id : ""}`;
+    toastInfo("Menyiapkan file Excel...", "Mohon tunggu");
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
+    const data = await api(url);
+    const cabNama = !isAdmin
+      ? CURRENT_USER.cabang_nama || ""
+      : cab_id === "all"
+        ? "Semua Cabang"
+        : cabangData?.find((c) => c.id == cab_id)?.nama || "";
+
+    // Ambil data stok saat ini
+    const stokSaatIni = stokData;
+
+    // ================================================================
+    // BUILD EXCEL MANUAL (format CSV multi-sheet via HTML table trick)
+    // Menggunakan SheetJS via CDN
+    // ================================================================
+
+    // Load SheetJS jika belum ada
+    if (!window.XLSX) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src =
+          "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const wb = window.XLSX.utils.book_new();
+
+    // ── SHEET 1: RINGKASAN ──────────────────────────────────────────
+    const s1 = [
+      [`REKAP BULANAN — ${namaBulan[bulan]} ${tahun}`],
+      [`Cabang: ${cabNama}`],
+      [`Dicetak: ${new Date().toLocaleString("id-ID")}`],
+      [],
+      ["RINGKASAN UMUM"],
+      ["Keterangan", "Nilai"],
+      ["Total Pemasukan", parseFloat(data.total_omzet || 0)],
+      ["Total Pengeluaran", parseFloat(data.total_keluar || 0)],
+      ["Laba Bersih", parseFloat(data.laba_bersih || 0)],
+      ["Total Transaksi", parseInt(data.total_transaksi || 0)],
+      ["Hari Aktif Jualan", parseInt(data.hari_aktif || 0)],
+      ["Rata-rata Omzet/Hari Aktif", parseFloat(data.rata_omzet_per_hari || 0)],
+      [],
+      ["RINGKASAN PER CABANG"],
+      [
+        "Cabang",
+        "Transaksi",
+        "Total Omzet",
+        "Total Pengeluaran",
+        "Laba Bersih",
+        "Rata-rata/Nota",
+      ],
+    ];
+    (data.per_cabang || []).forEach((c) => {
+      const kel = (data.keluar_per_cabang || []).find(
+        (k) => k.cabang_id == c.cabang_id,
+      );
+      const keluar = parseFloat(kel?.total_keluar || 0);
+      const laba = parseFloat(c.total_omzet || 0) - keluar;
+      s1.push([
+        c.cabang_nama,
+        parseInt(c.jumlah_transaksi || 0),
+        parseFloat(c.total_omzet || 0),
+        keluar,
+        laba,
+        parseFloat(c.rata_transaksi || 0),
+      ]);
+    });
+    const ws1 = window.XLSX.utils.aoa_to_sheet(s1);
+    // Set lebar kolom
+    ws1["!cols"] = [
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 16 },
+    ];
+    window.XLSX.utils.book_append_sheet(wb, ws1, "Ringkasan");
+
+    // ── SHEET 2: OMZET HARIAN ───────────────────────────────────────
+    const s2 = [
+      [`OMZET HARIAN — ${namaBulan[bulan]} ${tahun}`],
+      [],
+      ["Tanggal", "Hari", "Transaksi", "Omzet", "Pengeluaran", "Laba Bersih"],
+    ];
+    const hariNama = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    (data.grafik_labels || []).forEach((tgl, i) => {
+      const omzet = parseFloat(data.grafik_omzet[i] || 0);
+      const laba = parseFloat(data.grafik_laba[i] || 0);
+      const trx = parseInt(data.grafik_trx[i] || 0);
+      const keluar = omzet - laba;
+      const tglFull = new Date(
+        data.tahun || tahun,
+        (data.bulan || bulan) - 1,
+        tgl,
+      );
+      s2.push([
+        `${tgl} ${namaBulan[bulan]} ${tahun}`,
+        hariNama[tglFull.getDay()],
+        trx,
+        omzet,
+        keluar,
+        laba,
+      ]);
+    });
+    // Baris total
+    s2.push([]);
+    s2.push([
+      "TOTAL",
+      "",
+      parseInt(data.total_transaksi || 0),
+      parseFloat(data.total_omzet || 0),
+      parseFloat(data.total_keluar || 0),
+      parseFloat(data.laba_bersih || 0),
+    ]);
+    const ws2 = window.XLSX.utils.aoa_to_sheet(s2);
+    ws2["!cols"] = [
+      { wch: 22 },
+      { wch: 6 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+    ];
+    window.XLSX.utils.book_append_sheet(wb, ws2, "Omzet Harian");
+
+    // ── SHEET 3: PRODUK TERLARIS ────────────────────────────────────
+    const s3 = [
+      [`PRODUK TERLARIS — ${namaBulan[bulan]} ${tahun}`],
+      [],
+      [
+        "#",
+        "Produk",
+        "Cabang",
+        "Total Terjual",
+        "Satuan",
+        "Frekuensi",
+        "Total Omzet",
+      ],
+    ];
+    // Gabungkan per produk
+    const terlarisMap = {};
+    (data.produk_terlaris || []).forEach((p) => {
+      const key = p.bibit_id;
+      if (!terlarisMap[key]) {
+        terlarisMap[key] = {
+          ...p,
+          total_omzet: parseFloat(p.total_omzet || 0),
+          total_terjual: parseFloat(p.total_terjual || 0),
+          frekuensi: parseInt(p.frekuensi || 0),
+        };
+      } else {
+        terlarisMap[key].total_omzet += parseFloat(p.total_omzet || 0);
+        terlarisMap[key].total_terjual += parseFloat(p.total_terjual || 0);
+        terlarisMap[key].frekuensi += parseInt(p.frekuensi || 0);
+      }
+    });
+    Object.values(terlarisMap)
+      .sort((a, b) => b.total_omzet - a.total_omzet)
+      .forEach((p, i) => {
+        s3.push([
+          i + 1,
+          p.bibit_nama,
+          p.cabang_nama || "Semua",
+          parseFloat(p.total_terjual),
+          p.satuan_jual || p.satuan || "",
+          parseInt(p.frekuensi),
+          parseFloat(p.total_omzet),
+        ]);
+      });
+    const ws3 = window.XLSX.utils.aoa_to_sheet(s3);
+    ws3["!cols"] = [
+      { wch: 4 },
+      { wch: 28 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 16 },
+    ];
+    window.XLSX.utils.book_append_sheet(wb, ws3, "Produk Terlaris");
+
+    // ── SHEET 4: KONDISI STOK ───────────────────────────────────────
+    const s4 = [
+      [`KONDISI STOK — Per ${new Date().toLocaleDateString("id-ID")}`],
+      [],
+      ["Cabang", "Produk", "Stok", "Satuan", "Status"],
+    ];
+    stokSaatIni.forEach((r) => {
+      const v = parseFloat(r.jumlah);
+      const sat = r.satuan_dasar || r.satuan || "ml";
+      const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+      const crit = isMl ? STOK_CRITICAL : 2;
+      const warn = isMl ? STOK_WARNING : 5;
+      const status = v < crit ? "Kritis" : v < warn ? "Rendah" : "OK";
+      s4.push([r.cabang_nama, r.bibit_nama, v, sat, status]);
+    });
+    const ws4 = window.XLSX.utils.aoa_to_sheet(s4);
+    ws4["!cols"] = [
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 10 },
+      { wch: 8 },
+      { wch: 10 },
+    ];
+
+    // Warnai baris Kritis (merah) dan Rendah (kuning)
+    const range = window.XLSX.utils.decode_range(ws4["!ref"]);
+    for (let R = 3; R <= range.e.r; R++) {
+      const statusCell = ws4[window.XLSX.utils.encode_cell({ r: R, c: 4 })];
+      if (!statusCell) continue;
+      const fill =
+        statusCell.v === "Kritis"
+          ? { fgColor: { rgb: "FFCCCC" } }
+          : statusCell.v === "Rendah"
+            ? { fgColor: { rgb: "FFF3CC" } }
+            : null;
+      if (fill) {
+        for (let C = 0; C <= 4; C++) {
+          const cell = ws4[window.XLSX.utils.encode_cell({ r: R, c: C })];
+          if (cell) cell.s = { fill };
+        }
+      }
+    }
+    window.XLSX.utils.book_append_sheet(wb, ws4, "Kondisi Stok");
+
+    // ── DOWNLOAD ────────────────────────────────────────────────────
+    const fileName = `rekap-${namaBulan[bulan]}-${tahun}-${cabNama.toLowerCase().replace(/\s+/g, "-")}.xlsx`;
+    window.XLSX.writeFile(wb, fileName);
+    toastOk(`File ${fileName} berhasil didownload`, "Export Excel");
+  } catch (e) {
+    toastErr("Gagal export Excel: " + e.message);
+  }
+}
+
+async function exportPDFRekap(isAdmin) {
+  const cab_id = (() => {
+    if (!isAdmin) return null;
+    const checked = [...document.querySelectorAll(".rekap-cab-cb:checked")];
+    const allCab = document.querySelectorAll(".rekap-cab-cb").length;
+    return checked.length === allCab || checked.length === 0
+      ? "all"
+      : checked.map((cb) => cb.value).join(",");
+  })();
+  const bulanId = isAdmin ? "rekap-bulan" : "k-rekap-bulan";
+  const tahunId = isAdmin ? "rekap-tahun" : "k-rekap-tahun";
+  const { bulan, tahun } = getBulanTahun(bulanId, tahunId);
+
+  const namaBulan = [
+    "",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
+  ];
+
+  try {
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
     const data = await api(url);
     const cabNama = !isAdmin
       ? CURRENT_USER.cabang_nama || ""
@@ -3135,7 +3616,17 @@ async function loadRiwayatPage(page, tgl) {
         </div>
         <div class="trx-items">${items}</div>
         ${t.catatan ? `<div style="font-size:11px;color:var(--text2);margin-top:6px">📝 ${esc(t.catatan)}</div>` : ""}
-        ${batalBtn}
+        <div style="display:flex;gap:8px;margin-top:8px">
+          ${batalBtn}
+          ${
+            !isBatal
+              ? `<button class="btn btn-sm" onclick='printNota(${JSON.stringify(t)})' style="margin-left:auto">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+            Print Nota
+          </button>`
+              : ""
+          }
+        </div>
       </div>`;
       })
       .join("");
