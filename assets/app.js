@@ -274,13 +274,13 @@ async function buildLogTab(target) {
     const rows = logs
       .map(
         (l) => `
-      <div class="log-row">
-        <div class="log-dot dot-${l.tipe}"></div>
-        <div>
-          <div class="log-info"><strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)} ${l.tipe === "kurang" ? "berkurang" : "bertambah"} <strong>${l.jumlah} ${esc(l.satuan || "")}</strong>${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}</div>
-          <div class="log-meta">Sisa: ${l.sisa} ${esc(l.satuan || "")}</div>
+      <div class="log-row" style="flex-wrap:wrap;gap:6px">
+        <div class="log-dot dot-${l.tipe}" style="flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div class="log-info" style="word-break:break-word"><strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)} ${l.tipe === "kurang" ? "berkurang" : "bertambah"} <strong>${l.jumlah} ${esc(l.satuan || "")}</strong>${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}</div>
+          <div class="log-meta">Sisa: ${parseFloat(l.sisa)} ${esc(l.satuan || "")}</div>
         </div>
-        <div class="log-time">${l.created_at}</div>
+        <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">${l.created_at.replace(" ", "<br/>")}</div>
       </div>`,
       )
       .join("");
@@ -2562,7 +2562,8 @@ function buildRekapHTML(data, showCabangBreakdown) {
     cabangHTML = `
       <div class="rekap-card">
         <div class="rekap-card-title">Omzet per Cabang</div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap">
+        <table>
           <thead><tr>
             <th>#</th>
             <th>Cabang</th>
@@ -2582,7 +2583,7 @@ function buildRekapHTML(data, showCabangBreakdown) {
   // Gabungkan per produk (bisa ada duplikat beda satuan)
   const terlarisMap = {};
   terlaris.forEach((p) => {
-    const key = p.bibit_id + (showCabangBreakdown ? "" : "");
+    const key = p.bibit_id;
     if (!terlarisMap[key]) {
       terlarisMap[key] = {
         ...p,
@@ -2607,22 +2608,22 @@ function buildRekapHTML(data, showCabangBreakdown) {
       <tr>
         <td><span style="font-size:13px;font-weight:700;color:${i < 3 ? "var(--amber)" : "var(--text2)"}">${i + 1}</span></td>
         <td><strong>${esc(p.bibit_nama)}</strong></td>
-        ${showCabangBreakdown ? `<td>${esc(p.cabang_nama)}</td>` : ""}
         <td style="text-align:right">${p.total_terjual} ${esc(p.satuan_jual || p.satuan || "")}</td>
         <td style="text-align:right">${p.frekuensi}x</td>
         <td style="text-align:right"><strong>Rp ${p.total_omzet.toLocaleString("id-ID")}</strong></td>
       </tr>`,
         )
         .join("")
-    : `<tr><td colspan="${showCabangBreakdown ? 6 : 5}" class="empty">Belum ada data penjualan</td></tr>`;
+    : `<tr><td colspan="5" class="empty">Belum ada data penjualan</td></tr>`;
 
   const terlarisHTML = `
     <div class="rekap-card">
       <div class="rekap-card-title">Produk Terlaris</div>
-      <div class="tbl-wrap"><table>
+      <div class="tbl-wrap">
+      <table>
         <thead><tr>
-          <th>#</th><th>Produk</th>
-          ${showCabangBreakdown ? "<th>Cabang</th>" : ""}
+          <th>#</th>
+          <th>Produk</th>
           <th style="text-align:right">Terjual</th>
           <th style="text-align:right">Frekuensi</th>
           <th style="text-align:right">Omzet</th>
@@ -2641,64 +2642,77 @@ let rekapTglDari = "";
 let rekapTglSampai = "";
 async function buildRekapTab(target) {
   target.innerHTML = '<div class="loading">Memuat rekap...</div>';
-
+  // 111
   // Isi select bulan tahun
   target.innerHTML = `
-    <div class="rekap-toolbar">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1">
-        <label style="font-size:12px;color:var(--text2);font-weight:500">Cabang:</label>
-        <div id="rekap-cabang-wrap" style="position:relative">
-  <button type="button" id="rekap-cabang-btn"
-    onclick="toggleRekapCabangDrop()"
-    style="min-width:180px;text-align:left;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center">
-    <span id="rekap-cabang-label">Semua Cabang</span>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-  </button>
-  <div id="rekap-cabang-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:99;background:#fff;border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:8px;min-width:200px">
-    <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);margin-bottom:4px">
-      <input type="checkbox" id="rekap-cab-all" checked onchange="toggleSemuaRekapCabang(this)"
-        style="width:15px;height:15px;accent-color:var(--amber)"/>
-      <strong>Semua Cabang</strong>
-    </label>
-    ${cabangData
-      .map(
-        (c) => `
-    <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer">
-      <input type="checkbox" class="rekap-cab-cb" value="${c.id}" checked
-        onchange="updateRekapCabangLabel()"
-        style="width:15px;height:15px;accent-color:var(--amber)"/>
-      ${esc(c.nama)}
-    </label>`,
-      )
-      .join("")}
-    <div style="margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border)">
-      <button class="btn btn-sm btn-primary" style="width:100%" onclick="loadRekapAdmin();toggleRekapCabangDrop()">Terapkan</button>
-    </div>
-  </div>
-</div>
-        <label style="font-size:12px;color:var(--text2);font-weight:500">Bulan:</label>
-<select id="rekap-bulan" onchange="loadRekapAdmin()"></select>
-<select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:90px"></select>
-<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
-  <label style="font-size:12px;color:var(--text2);font-weight:500">Dari:</label>
-  <input type="date" id="rekap-tgl-dari" style="width:130px"
-    onchange="rekapTglDari=this.value;loadRekapAdmin()"/>
-  <label style="font-size:12px;color:var(--text2);font-weight:500">Sampai:</label>
-  <input type="date" id="rekap-tgl-sampai" style="width:130px"
-    onchange="rekapTglSampai=this.value;loadRekapAdmin()"/>
-  <button class="btn btn-sm" onclick="resetRentangRekap()" title="Reset filter tanggal">✕</button>
-</div>
+    <div class="rekap-toolbar" style="display:flex;flex-direction:column;gap:12px;align-items:stretch">
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;width:55px">Cabang:</label>
+        <div id="rekap-cabang-wrap" style="position:relative;flex:1;min-width:0">
+          <button type="button" id="rekap-cabang-btn"
+            onclick="toggleRekapCabangDrop()"
+            style="width:100%;text-align:left;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+            <span id="rekap-cabang-label">Semua Cabang</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div id="rekap-cabang-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:99;background:#fff;border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:8px;min-width:200px">
+            <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);margin-bottom:4px">
+              <input type="checkbox" id="rekap-cab-all" checked onchange="toggleSemuaRekapCabang(this)"
+                style="width:15px;height:15px;accent-color:var(--amber)"/>
+              <strong>Semua Cabang</strong>
+            </label>
+            ${cabangData
+              .map(
+                (c) => `
+            <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" class="rekap-cab-cb" value="${c.id}" checked
+                onchange="updateRekapCabangLabel()"
+                style="width:15px;height:15px;accent-color:var(--amber)"/>
+              ${esc(c.nama)}
+            </label>`,
+              )
+              .join("")}
+            <div style="margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border)">
+              <button class="btn btn-sm btn-primary" style="width:100%" onclick="loadRekapAdmin();toggleRekapCabangDrop()">Terapkan</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-green" onclick="exportPDFRekap(true)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-        Export PDF
-      </button>
-      <button class="btn" style="background:#1D6F42;color:#fff" onclick="exportExcelRekap(true)">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-  Export Excel
-</button>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;width:55px">Bulan:</label>
+        <div style="display:flex;align-items:center;gap:8px;flex:1">
+          <select id="rekap-bulan" onchange="loadRekapAdmin()" style="flex:1;min-width:0;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"></select>
+          <select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:85px;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"></select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;width:55px">Dari:</label>
+        <input type="date" id="rekap-tgl-dari" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"
+          onchange="rekapTglDari=this.value;loadRekapAdmin()"/>
+        <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;margin-left:4px">Sampai:</label>
+        <input type="date" id="rekap-tgl-sampai" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"
+          onchange="rekapTglSampai=this.value;loadRekapAdmin()"/>
+        <button class="btn btn-sm" onclick="resetRentangRekap()" title="Reset filter tanggal"
+          style="white-space:nowrap;padding:7px 10px">✕ Reset</button>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green" style="flex:1" onclick="exportPDFRekap(true)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          Export PDF
+        </button>
+        <button class="btn" style="flex:1;background:#1D6F42;color:#fff" onclick="exportExcelRekap(true)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          Export Excel
+        </button>
+      </div>
+
     </div>
-    <div id="rekap-content" style="margin-top:14px"><div class="empty">Pilih bulan untuk melihat rekap</div></div>`;
+    <div id="rekap-content" style="margin-top:14px"><div class="empty">Pilih bulan untuk melihat rekap</div></div>
+`;
 
   isiSelectBulanTahun("rekap-bulan", "rekap-tahun");
   await loadRekapAdmin();
@@ -3445,14 +3459,20 @@ function buildPaginationHTML(pag, onPageFn) {
    ================================================ */
 let logPage = 1;
 let logKeyword = "";
+let logTanggal = "";
 
 async function buildLogTab(target) {
   target.innerHTML = `
     <div class="card" style="padding:12px;margin-bottom:12px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input type="text" id="log-search" placeholder="Cari karyawan, produk, cabang..."
-          style="flex:1;min-width:200px" oninput="debounceLogSearch()"
+          style="flex:1;min-width:160px" oninput="debounceLogSearch()"
           value="${esc(logKeyword)}"/>
+        <input type="date" id="log-tgl" value="${esc(logTanggal)}"
+          onchange="logTanggal=this.value;logPage=1;loadLogPage(1)"
+          style="width:140px"/>
+        <button class="btn btn-sm" onclick="logTanggal='';$('log-tgl').value='';logPage=1;loadLogPage(1)"
+          title="Reset filter tanggal">✕ Tanggal</button>
         <button class="btn btn-sm btn-danger" onclick="hapusLog()">Hapus Semua Log</button>
       </div>
     </div>
@@ -3478,7 +3498,7 @@ async function loadLogPage(page) {
   content.innerHTML = '<div class="loading">Memuat...</div>';
 
   try {
-    const url = `${BASE_URL}/api/log.php?page=${page}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(logKeyword)}`;
+    const url = `${BASE_URL}/api/log.php?page=${page}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(logKeyword)}${logTanggal ? "&tanggal=" + logTanggal : ""}`;
     const data = await api(url);
     const logs = data.logs || [];
     const pag = data.pagination;
@@ -3491,21 +3511,54 @@ async function loadLogPage(page) {
     const rows = logs
       .map(
         (l) => `
-      <div class="log-row">
-        <div class="log-dot dot-${l.tipe}"></div>
-        <div>
-          <div class="log-info">
+      <div class="log-row" style="flex-wrap:wrap;gap:6px">
+        <div class="log-dot dot-${l.tipe}" style="flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div class="log-info" style="word-break:break-word">
             <strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)}
             ${l.tipe === "kurang" ? "berkurang" : "bertambah"}
             <strong>${parseFloat(l.jumlah)} ${esc(l.satuan || "")}</strong>
             ${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}
           </div>
-          <div class="log-meta">Sisa: ${l.sisa} ${esc(l.satuan || "")}</div>
+          <div class="log-meta">Sisa: ${parseFloat(l.sisa)} ${esc(l.satuan || "")}</div>
         </div>
-        <div class="log-time">${l.created_at}</div>
+        <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">${l.created_at.replace(" ", "<br/>")}</div>
       </div>`,
       )
       .join("");
+
+    // Render pengeluaran jika ada filter tanggal
+    const pengeluaran = data.pengeluaran || [];
+    const kelHTML =
+      pengeluaran.length && logTanggal
+        ? `
+      <div class="card" style="margin-top:12px">
+        <div class="card-header">
+          <span class="card-title">Pengeluaran</span>
+          <span style="font-size:12px;color:var(--text2)">${pengeluaran.length} item</span>
+        </div>
+        ${pengeluaran
+          .map(
+            (p) => `
+        <div class="log-row" style="flex-wrap:wrap;gap:6px">
+          <div class="log-dot" style="background:var(--red);flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div class="log-info" style="word-break:break-word">
+              <strong>${esc(p.user_nama)}</strong> — 
+              <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
+              senilai <strong style="color:var(--red)">Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
+              ${p.keterangan ? " (" + esc(p.keterangan) + ")" : ""}
+            </div>
+            <div class="log-meta">Pengeluaran</div>
+          </div>
+          <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
+            ${p.created_at.replace(" ", "<br/>")}
+          </div>
+        </div>`,
+          )
+          .join("")}
+      </div>`
+        : "";
 
     content.innerHTML = `
       <div class="card">
@@ -3515,7 +3568,8 @@ async function loadLogPage(page) {
         </div>
         ${rows}
         ${buildPaginationHTML(pag, "loadLogPage")}
-      </div>`;
+      </div>
+      ${kelHTML}`;
   } catch (e) {
     content.innerHTML =
       '<div class="alert alert-danger">Gagal memuat log</div>';
@@ -3648,7 +3702,7 @@ async function loadRiwayatPage(page, tgl) {
           .map(
             (item) =>
               `<div class="trx-row">
-          <span>${esc(item.bibit_nama)} × ${item.jumlah_jual} ${esc(item.satuan_jual)}</span>
+          <span>${esc(item.bibit_nama)} × ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}</span>
           <span>Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</span>
         </div>`,
           )

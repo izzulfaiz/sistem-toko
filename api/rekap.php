@@ -120,7 +120,6 @@ if ($tgl_dari && $tgl_sampai) {
         SELECT b.id                AS bibit_id,
                b.nama              AS bibit_nama,
                b.satuan_dasar      AS satuan,
-               c.nama              AS cabang_nama,
                SUM(td.jumlah_jual) AS total_terjual,
                SUM(td.subtotal)    AS total_omzet,
                COUNT(td.id)        AS frekuensi,
@@ -128,11 +127,10 @@ if ($tgl_dari && $tgl_sampai) {
         FROM transaksi_detail td
         JOIN transaksi t ON td.transaksi_id = t.id
         JOIN bibit     b ON td.bibit_id     = b.id
-        JOIN cabang    c ON t.cabang_id     = c.id
         WHERE DATE(t.created_at) BETWEEN ? AND ?
           AND t.kode_nota NOT LIKE 'BATAL-%'
           $where_trx
-        GROUP BY b.id, b.nama, c.id, c.nama, td.satuan_jual
+        GROUP BY b.id, b.nama, td.satuan_jual
         ORDER BY total_omzet DESC
         LIMIT 20
     ");

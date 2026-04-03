@@ -915,9 +915,10 @@ tr:hover td {
     grid-template-columns: 8px 1fr;
     gap: 8px;
   }
-  .log-time {
+
+  /* .log-time {
     display: none;
-  } /* sembunyikan kolom waktu di HP */
+  } sembunyikan kolom waktu di HP */
   .log-info {
     font-size: 12px;
   }
@@ -1144,9 +1145,9 @@ tr:hover td {
     grid-template-columns: 8px 1fr;
     gap: 8px;
   }
-  .log-time {
+  /* .log-time {
     display: none;
-  } /* waktu masuk ke log-meta di HP */
+  } waktu masuk ke log-meta di HP */
   .log-info {
     font-size: 12px;
   }
@@ -2389,10 +2390,10 @@ tr:hover td {
     border-top: 0.5px solid var(--border);
   }
   /* Sembunyikan kolom yang tidak penting di HP */
-  .tbl-wrap table th:nth-child(5),
+  /* .tbl-wrap table th:nth-child(5),
   .tbl-wrap table td:nth-child(5) {
     display: none;
-  } /* sembunyikan kolom Status */
+  } sembunyikan kolom Status */
 
   /* Stok row — wrap ke 2 baris jika sangat sempit */
   .stock-row {
