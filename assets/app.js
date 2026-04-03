@@ -530,9 +530,9 @@ async function exportPDF() {
     M = 14;
   let y = 0;
 
-  doc.setFillColor(46, 125, 50);
+  doc.setFillColor(61, 82, 160);
   doc.rect(0, 0, W, 38, "F");
-  doc.setFillColor(76, 175, 80);
+  doc.setFillColor(100, 120, 192);
   doc.rect(0, 32, W, 6, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
@@ -561,7 +561,7 @@ async function exportPDF() {
     {
       label: "Total Stok",
       val: (totalStok / 1000).toFixed(1) + "L",
-      color: [15, 110, 86],
+      color: [61, 82, 160],
     },
     {
       label: "Berkurang",
@@ -571,11 +571,11 @@ async function exportPDF() {
     {
       label: "Ditambah",
       val: (data.total_tambah || 0) + "",
-      color: [15, 110, 86],
+      color: [61, 82, 160],
     },
-    { label: "Transaksi", val: logs.length + "", color: [24, 95, 165] },
+    { label: "Transaksi", val: logs.length + "", color: [194, 24, 91] },
     { label: "Menipis", val: stokKritis + "", color: [163, 45, 45] },
-    { label: "Rendah", val: stokRendah + "", color: [46, 125, 50] },
+    { label: "Rendah", val: stokRendah + "", color: [61, 82, 160] },
   ];
   const bw = (W - M * 2 - 10) / 6;
   boxes.forEach((b, i) => {
@@ -624,8 +624,8 @@ async function exportPDF() {
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 249, 248] },
+    headStyles: { fillColor: [61, 82, 160], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [248, 249, 255] },
     columnStyles: { 4: { halign: "right" }, 5: { halign: "right" } },
     didParseCell(d) {
       if (d.section === "body" && d.column.index === 4)
@@ -665,8 +665,8 @@ async function exportPDF() {
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 249, 248] },
+    headStyles: { fillColor: [194, 24, 91], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [255, 248, 252] },
     columnStyles: { 2: { halign: "right" }, 3: { halign: "center" } },
     didParseCell(d) {
       if (d.section === "body" && d.column.index === 3) {
@@ -1831,9 +1831,9 @@ async function exportPDFKaryawan() {
   let y = 0;
 
   // Header
-  doc.setFillColor(46, 125, 50);
+  doc.setFillColor(61, 82, 160);
   doc.rect(0, 0, W, 34, "F");
-  doc.setFillColor(76, 175, 80);
+  doc.setFillColor(100, 120, 192);
   doc.rect(0, 28, W, 6, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
@@ -1858,7 +1858,7 @@ async function exportPDFKaryawan() {
     {
       label: "Total Masuk",
       val: "Rp " + totalMasuk.toLocaleString("id-ID"),
-      color: [15, 110, 86],
+      color: [61, 82, 160],
     },
     {
       label: "Total Keluar",
@@ -1895,7 +1895,7 @@ async function exportPDFKaryawan() {
   y += 26;
 
   // Tabel transaksi masuk
-  doc.setTextColor(15, 110, 86);
+  doc.setTextColor(61, 82, 160);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("TRANSAKSI MASUK", M, y);
@@ -1941,16 +1941,16 @@ async function exportPDFKaryawan() {
       lineColor: [229, 227, 220],
       lineWidth: 0.2,
     },
-    headStyles: { fillColor: [15, 110, 86], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [250, 249, 248] },
+    headStyles: { fillColor: [61, 82, 160], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [248, 249, 255] },
     columnStyles: {
       4: { halign: "right" },
       5: { halign: "right", fontStyle: "bold" },
     },
     didParseCell(d) {
       if (d.section === "body" && d.row.raw[4] === "TOTAL NOTA") {
-        d.cell.styles.fillColor = [225, 245, 238];
-        d.cell.styles.textColor = [15, 110, 86];
+        d.cell.styles.fillColor = [235, 238, 255];
+        d.cell.styles.textColor = [61, 82, 160];
         d.cell.styles.fontStyle = "bold";
       }
       if (
@@ -2496,12 +2496,12 @@ function buildRekapHTML(data, showCabangBreakdown) {
   // Summary cards
   const laba = parseFloat(data.laba_bersih || data.total_omzet || 0);
   const totalKeluar = parseFloat(data.total_keluar || 0);
-  const labaColor = laba >= 0 ? "var(--teal)" : "var(--red)";
+  const labaColor = laba >= 0 ? "var(--green)" : "var(--red)";
 
   const summaryHTML = `
     <div class="rekap-summary">
       <div class="rekap-sum-card">
-        <div class="rekap-sum-val" style="color:var(--teal)">Rp ${parseFloat(data.total_omzet || 0).toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-val" style="color:var(--blue)">Rp ${parseFloat(data.total_omzet || 0).toLocaleString("id-ID")}</div>
         <div class="rekap-sum-lbl">Total Pemasukan</div>
       </div>
       <div class="rekap-sum-card">
@@ -2539,23 +2539,39 @@ function buildRekapHTML(data, showCabangBreakdown) {
   let cabangHTML = "";
   if (showCabangBreakdown && data.per_cabang?.length > 1) {
     const rows = data.per_cabang
-      .map(
-        (c, i) => `
+      .map((c, i) => {
+        const kel = (data.keluar_per_cabang || []).find(
+          (k) => k.cabang_id == c.cabang_id,
+        );
+        const keluar = parseFloat(kel?.total_keluar || 0);
+        const laba = parseFloat(c.total_omzet || 0) - keluar;
+        const labaColor = laba >= 0 ? "var(--green)" : "var(--red)";
+        return `
       <tr>
         <td>${i + 1}</td>
         <td><strong>${esc(c.cabang_nama)}</strong></td>
         <td style="text-align:right">${c.jumlah_transaksi || 0}</td>
         <td style="text-align:right"><strong>Rp ${parseFloat(c.total_omzet || 0).toLocaleString("id-ID")}</strong></td>
+        <td style="text-align:right;color:var(--red)">Rp ${keluar.toLocaleString("id-ID")}</td>
+        <td style="text-align:right;color:${labaColor};"><strong>Rp ${laba.toLocaleString("id-ID")}</strong></td>
         <td style="text-align:right">Rp ${parseFloat(c.rata_transaksi || 0).toLocaleString("id-ID")}</td>
-      </tr>`,
-      )
+      </tr>`;
+      })
       .join("");
 
     cabangHTML = `
       <div class="rekap-card">
         <div class="rekap-card-title">Omzet per Cabang</div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>#</th><th>Cabang</th><th style="text-align:right">Transaksi</th><th style="text-align:right">Total Omzet</th><th style="text-align:right">Rata-rata/Nota</th></tr></thead>
+          <thead><tr>
+            <th>#</th>
+            <th>Cabang</th>
+            <th style="text-align:right">Transaksi</th>
+            <th style="text-align:right">Total Omzet</th>
+            <th style="text-align:right">Pengeluaran</th>
+            <th style="text-align:right">Laba Bersih</th>
+            <th style="text-align:right">Rata-rata/Nota</th>
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
       </div>`;
@@ -2621,6 +2637,8 @@ function buildRekapHTML(data, showCabangBreakdown) {
 /* ================================================
    REKAP BULANAN — ADMIN
    ================================================ */
+let rekapTglDari = "";
+let rekapTglSampai = "";
 async function buildRekapTab(target) {
   target.innerHTML = '<div class="loading">Memuat rekap...</div>';
 
@@ -2659,8 +2677,17 @@ async function buildRekapTab(target) {
   </div>
 </div>
         <label style="font-size:12px;color:var(--text2);font-weight:500">Bulan:</label>
-        <select id="rekap-bulan" onchange="loadRekapAdmin()"></select>
-        <select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:90px"></select>
+<select id="rekap-bulan" onchange="loadRekapAdmin()"></select>
+<select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:90px"></select>
+<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)">
+  <label style="font-size:12px;color:var(--text2);font-weight:500">Dari:</label>
+  <input type="date" id="rekap-tgl-dari" style="width:130px"
+    onchange="rekapTglDari=this.value;loadRekapAdmin()"/>
+  <label style="font-size:12px;color:var(--text2);font-weight:500">Sampai:</label>
+  <input type="date" id="rekap-tgl-sampai" style="width:130px"
+    onchange="rekapTglSampai=this.value;loadRekapAdmin()"/>
+  <button class="btn btn-sm" onclick="resetRentangRekap()" title="Reset filter tanggal">✕</button>
+</div>
       </div>
       <button class="btn btn-green" onclick="exportPDFRekap(true)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
@@ -2690,7 +2717,13 @@ async function loadRekapAdmin() {
 
   content.innerHTML = '<div class="loading">Memuat data rekap...</div>';
   try {
-    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
+    const tglDari = $("rekap-tgl-dari")?.value || "";
+    const tglSampai = $("rekap-tgl-sampai")?.value || "";
+    const rentang =
+      tglDari && tglSampai
+        ? `&tgl_dari=${tglDari}&tgl_sampai=${tglSampai}`
+        : "";
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}${rentang}`;
     const data = await api(url);
 
     content.innerHTML = buildRekapHTML(data, true);
@@ -2713,6 +2746,20 @@ async function loadRekapAdmin() {
       e.message +
       "</div>";
   }
+}
+
+function resetRentangRekap() {
+  const dari = $("rekap-tgl-dari");
+  const sampai = $("rekap-tgl-sampai");
+  if (dari) {
+    dari.value = "";
+    rekapTglDari = "";
+  }
+  if (sampai) {
+    sampai.value = "";
+    rekapTglSampai = "";
+  }
+  loadRekapAdmin();
 }
 
 function toggleRekapCabangDrop() {
@@ -2819,7 +2866,13 @@ async function exportExcelRekap(isAdmin) {
 
   try {
     toastInfo("Menyiapkan file Excel...", "Mohon tunggu");
-    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
+    const tglDari = $("rekap-tgl-dari")?.value || "";
+    const tglSampai = $("rekap-tgl-sampai")?.value || "";
+    const rentang =
+      tglDari && tglSampai
+        ? `&tgl_dari=${tglDari}&tgl_sampai=${tglSampai}`
+        : "";
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}${rentang}`;
     const data = await api(url);
     const cabNama = !isAdmin
       ? CURRENT_USER.cabang_nama || ""
@@ -3087,7 +3140,13 @@ async function exportPDFRekap(isAdmin) {
   ];
 
   try {
-    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}`;
+    const tglDari = $("rekap-tgl-dari")?.value || "";
+    const tglSampai = $("rekap-tgl-sampai")?.value || "";
+    const rentang =
+      tglDari && tglSampai
+        ? `&tgl_dari=${tglDari}&tgl_sampai=${tglSampai}`
+        : "";
+    const url = `${BASE_URL}/api/rekap.php?bulan=${bulan}&tahun=${tahun}${cab_id && cab_id !== "all" ? "&cabang_ids=" + cab_id : ""}${rentang}`;
     const data = await api(url);
     const cabNama = !isAdmin
       ? CURRENT_USER.cabang_nama || ""
@@ -3106,9 +3165,9 @@ async function exportPDFRekap(isAdmin) {
     let y = 0;
 
     // Header
-    doc.setFillColor(46, 125, 50);
+    doc.setFillColor(61, 82, 160);
     doc.rect(0, 0, W, 38, "F");
-    doc.setFillColor(76, 175, 80);
+    doc.setFillColor(100, 120, 192);
     doc.rect(0, 32, W, 6, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
@@ -3133,7 +3192,7 @@ async function exportPDFRekap(isAdmin) {
       {
         label: "Total Omzet",
         val: "Rp " + parseFloat(data.total_omzet || 0).toLocaleString("id-ID"),
-        color: [46, 125, 50],
+        color: [61, 82, 160],
       },
       {
         label: "Total Transaksi",
@@ -3143,14 +3202,14 @@ async function exportPDFRekap(isAdmin) {
       {
         label: "Hari Aktif",
         val: (data.hari_aktif || 0) + " hari",
-        color: [15, 110, 86],
+        color: [194, 24, 91],
       },
       {
         label: "Rata-rata/Hari",
         val:
           "Rp " +
           parseFloat(data.rata_omzet_per_hari || 0).toLocaleString("id-ID"),
-        color: [46, 125, 50],
+        color: [61, 82, 160],
       },
     ];
     const bw = (W - M * 2 - 6) / 4;
@@ -3194,11 +3253,11 @@ async function exportPDFRekap(isAdmin) {
           lineWidth: 0.2,
         },
         headStyles: {
-          fillColor: [46, 125, 50],
+          fillColor: [61, 82, 160],
           textColor: 255,
           fontStyle: "bold",
         },
-        alternateRowStyles: { fillColor: [250, 249, 248] },
+        alternateRowStyles: { fillColor: [248, 249, 255] },
         columnStyles: {
           2: { halign: "center" },
           3: { halign: "right" },
@@ -3261,11 +3320,11 @@ async function exportPDFRekap(isAdmin) {
         lineWidth: 0.2,
       },
       headStyles: {
-        fillColor: [46, 125, 50],
+        fillColor: [194, 24, 91],
         textColor: 255,
         fontStyle: "bold",
       },
-      alternateRowStyles: { fillColor: [250, 249, 248] },
+      alternateRowStyles: { fillColor: [255, 248, 252] },
       columnStyles: {
         2: { halign: "right" },
         3: { halign: "center" },
@@ -3309,11 +3368,11 @@ async function exportPDFRekap(isAdmin) {
         lineWidth: 0.2,
       },
       headStyles: {
-        fillColor: [46, 125, 50],
+        fillColor: [61, 82, 160],
         textColor: 255,
         fontStyle: "bold",
       },
-      alternateRowStyles: { fillColor: [250, 249, 248] },
+      alternateRowStyles: { fillColor: [248, 249, 255] },
       columnStyles: {
         2: { halign: "center" },
         3: { halign: "right", fontStyle: "bold" },

@@ -14,7 +14,11 @@ $db        = getDB();
 
 if ($method === 'GET') {
     $bulan = (int)($_GET['bulan'] ?? date('n'));
-    $tahun = (int)($_GET['tahun'] ?? date('Y'));
+$tahun = (int)($_GET['tahun'] ?? date('Y'));
+
+// Support filter rentang tanggal
+$tgl_dari   = $_GET['tgl_dari']  ?? null;
+$tgl_sampai = $_GET['tgl_sampai'] ?? null;
 
     // Support multi cabang (cabang_ids) atau single cabang (cabang_id)
     if (!isAdmin()) {
@@ -35,8 +39,14 @@ if ($method === 'GET') {
     $where_kel_p = $in_cabang ? "AND cabang_id IN ($in_cabang)" : "";
     $where_kel2  = $in_cabang ? "AND p.cabang_id IN ($in_cabang)" : "";
 
+    // Jika ada filter rentang, pakai itu. Kalau tidak, pakai seluruh bulan
+if ($tgl_dari && $tgl_sampai) {
+    $tgl_awal  = $tgl_dari;
+    $tgl_akhir = $tgl_sampai;
+} else {
     $tgl_awal  = sprintf('%04d-%02d-01', $tahun, $bulan);
     $tgl_akhir = date('Y-m-t', strtotime($tgl_awal));
+}
 
     // ---- 1. OMZET HARIAN ----
     $stmt = $db->prepare("
