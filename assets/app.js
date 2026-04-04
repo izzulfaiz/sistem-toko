@@ -2521,7 +2521,7 @@ function buildRekapHTML(data, showCabangBreakdown) {
         <div class="rekap-sum-lbl">Hari Aktif Jualan</div>
       </div>
       <div class="rekap-sum-card">
-        <div class="rekap-sum-val" style="font-size:15px">Rp ${parseFloat(data.rata_omzet_per_hari || 0).toLocaleString("id-ID")}</div>
+        <div class="rekap-sum-val" style="font-size:15px">Rp ${Math.round(parseFloat(data.rata_omzet_per_hari || 0)).toLocaleString("id-ID")}</div>
         <div class="rekap-sum-lbl">Rata-rata / Hari Aktif</div>
       </div>
     </div>`;
@@ -2554,7 +2554,7 @@ function buildRekapHTML(data, showCabangBreakdown) {
         <td style="text-align:right"><strong>Rp ${parseFloat(c.total_omzet || 0).toLocaleString("id-ID")}</strong></td>
         <td style="text-align:right;color:var(--red)">Rp ${keluar.toLocaleString("id-ID")}</td>
         <td style="text-align:right;color:${labaColor};"><strong>Rp ${laba.toLocaleString("id-ID")}</strong></td>
-        <td style="text-align:right">Rp ${parseFloat(c.rata_transaksi || 0).toLocaleString("id-ID")}</td>
+        <td style="text-align:right">Rp ${Math.round(parseFloat(c.rata_transaksi || 0)).toLocaleString("id-ID")}</td>
       </tr>`;
       })
       .join("");
@@ -2929,7 +2929,10 @@ async function exportExcelRekap(isAdmin) {
       ["Laba Bersih", parseFloat(data.laba_bersih || 0)],
       ["Total Transaksi", parseInt(data.total_transaksi || 0)],
       ["Hari Aktif Jualan", parseInt(data.hari_aktif || 0)],
-      ["Rata-rata Omzet/Hari Aktif", parseFloat(data.rata_omzet_per_hari || 0)],
+      [
+        "Rata-rata Omzet/Hari Aktif",
+        Math.round(parseFloat(data.rata_omzet_per_hari || 0)),
+      ],
       [],
       ["RINGKASAN PER CABANG"],
       [
@@ -2953,7 +2956,7 @@ async function exportExcelRekap(isAdmin) {
         parseFloat(c.total_omzet || 0),
         keluar,
         laba,
-        parseFloat(c.rata_transaksi || 0),
+        Math.round(parseFloat(c.rata_transaksi || 0)),
       ]);
     });
     const ws1 = window.XLSX.utils.aoa_to_sheet(s1);
@@ -3222,7 +3225,9 @@ async function exportPDFRekap(isAdmin) {
         label: "Rata-rata/Hari",
         val:
           "Rp " +
-          parseFloat(data.rata_omzet_per_hari || 0).toLocaleString("id-ID"),
+          Math.round(parseFloat(data.rata_omzet_per_hari || 0)).toLocaleString(
+            "id-ID",
+          ),
         color: [61, 82, 160],
       },
     ];
@@ -3258,7 +3263,10 @@ async function exportPDFRekap(isAdmin) {
           c.cabang_nama,
           c.jumlah_transaksi || 0,
           "Rp " + parseFloat(c.total_omzet || 0).toLocaleString("id-ID"),
-          "Rp " + parseFloat(c.rata_transaksi || 0).toLocaleString("id-ID"),
+          "Rp " +
+            Math.round(parseFloat(c.rata_transaksi || 0)).toLocaleString(
+              "id-ID",
+            ),
         ]),
         styles: {
           fontSize: 8,
@@ -3527,49 +3535,86 @@ async function loadLogPage(page) {
       )
       .join("");
 
-    // Render pengeluaran jika ada filter tanggal
+    // Gabungkan log stok dan pengeluaran dalam 1 list diurutkan by waktu
     const pengeluaran = data.pengeluaran || [];
-    const kelHTML =
-      pengeluaran.length && logTanggal
-        ? `
-      <div class="card" style="margin-top:12px">
-        <div class="card-header">
-          <span class="card-title">Pengeluaran</span>
-          <span style="font-size:12px;color:var(--text2)">${pengeluaran.length} item</span>
+
+    // Convert pengeluaran ke format yang sama dengan log
+    const kelRows = pengeluaran
+      .map(
+        (p) => `
+      <div class="log-row" style="flex-wrap:wrap;gap:6px">
+        <div class="log-dot" style="background:var(--red);flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div class="log-info" style="word-break:break-word">
+            <strong>${esc(p.user_nama)}</strong> —
+            Pengeluaran: <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
+            senilai <strong style="color:var(--red)">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
+            ${p.keterangan ? " (" + esc(p.keterangan) + ")" : ""}
+          </div>
+          <div class="log-meta">💸 Pengeluaran</div>
         </div>
-        ${pengeluaran
-          .map(
-            (p) => `
+        <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
+          ${p.created_at.replace(" ", "<br/>")}
+        </div>
+      </div>`,
+      )
+      .join("");
+
+    // Gabungkan semua item (log + pengeluaran) lalu sort by waktu terbaru
+    // Karena sudah diurutkan di PHP masing-masing, kita merge di sini
+    const allItems = [
+      ...logs.map((l) => ({
+        time: l.created_at,
+        html: `
+        <div class="log-row" style="flex-wrap:wrap;gap:6px">
+          <div class="log-dot dot-${l.tipe}" style="flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div class="log-info" style="word-break:break-word">
+              <strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)}
+              ${l.tipe === "kurang" ? "berkurang" : "bertambah"}
+              <strong>${parseFloat(l.jumlah)} ${esc(l.satuan || "")}</strong>
+              ${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}
+            </div>
+            <div class="log-meta">Sisa: ${l.sisa} ${esc(l.satuan || "")}</div>
+          </div>
+          <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
+            ${l.created_at.replace(" ", "<br/>")}
+          </div>
+        </div>`,
+      })),
+      ...pengeluaran.map((p) => ({
+        time: p.created_at,
+        html: `
         <div class="log-row" style="flex-wrap:wrap;gap:6px">
           <div class="log-dot" style="background:var(--red);flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div class="log-info" style="word-break:break-word">
-              <strong>${esc(p.user_nama)}</strong> — 
-              <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
-              senilai <strong style="color:var(--red)">Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
+              <strong>${esc(p.user_nama)}</strong> —
+              Pengeluaran: <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
+              senilai <strong style="color:var(--red)">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
               ${p.keterangan ? " (" + esc(p.keterangan) + ")" : ""}
             </div>
-            <div class="log-meta">Pengeluaran</div>
+            <div class="log-meta">💸 Pengeluaran</div>
           </div>
           <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
             ${p.created_at.replace(" ", "<br/>")}
           </div>
         </div>`,
-          )
-          .join("")}
-      </div>`
-        : "";
+      })),
+    ].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    const allRows = allItems.map((i) => i.html).join("");
+    const totalItem = (pag?.total || 0) + pengeluaran.length;
 
     content.innerHTML = `
       <div class="card">
         <div class="card-header">
           <span class="card-title">Riwayat Aktivitas</span>
-          <span style="font-size:12px;color:var(--text2)">${pag?.total || 0} total log</span>
+          <span style="font-size:12px;color:var(--text2)">${totalItem} total aktivitas</span>
         </div>
-        ${rows}
+        ${allRows || '<div class="empty">Tidak ada data</div>'}
         ${buildPaginationHTML(pag, "loadLogPage")}
-      </div>
-      ${kelHTML}`;
+      </div>`;
   } catch (e) {
     content.innerHTML =
       '<div class="alert alert-danger">Gagal memuat log</div>';

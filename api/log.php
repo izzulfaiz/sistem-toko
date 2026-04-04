@@ -23,28 +23,41 @@ if ($method === 'GET') {
         jsonResponse(['success' => false, 'message' => 'Format tanggal tidak valid'], 400);
     }
 
-    $result = getLogsPaginated($cabang_id, $tanggal, $page, $per_page, $keyword);
+    $db = getDB();
 
-    // Ambil pengeluaran pada tanggal yang sama (jika ada filter tanggal)
-    $pengeluaran = [];
-    if ($tanggal) {
-        $db       = getDB();
-        $where_kb = isAdmin()
-            ? ($cabang_id ? "AND p.cabang_id = $cabang_id" : "")
-            : "AND p.cabang_id = {$user['cabang_id']}";
-        $stmt = $db->prepare("
-            SELECT p.id, p.nama_item, p.nominal, p.keterangan,
-                   p.created_at, u.nama AS user_nama, c.nama AS cabang_nama
-            FROM pengeluaran p
-            JOIN users  u ON p.user_id   = u.id
-            JOIN cabang c ON p.cabang_id = c.id
-            WHERE DATE(p.created_at) = ?
-            $where_kb
-            ORDER BY p.created_at DESC
-        ");
-        $stmt->execute([$tanggal]);
-        $pengeluaran = $stmt->fetchAll();
-    }
+    // WHERE clause cabang untuk pengeluaran
+    $where_kel = isAdmin()
+        ? ($cabang_id ? "AND p.cabang_id = $cabang_id" : "")
+        : "AND p.cabang_id = {$user['cabang_id']}";
+
+    // WHERE clause tanggal untuk pengeluaran
+    $where_tgl_kel = $tanggal ? "AND DATE(p.created_at) = " . $db->quote($tanggal) : "";
+
+    // WHERE clause keyword untuk pengeluaran
+    $where_kw_kel = $keyword
+        ? "AND (p.nama_item LIKE " . $db->quote("%$keyword%") .
+          " OR u.nama LIKE " . $db->quote("%$keyword%") .
+          " OR c.nama LIKE " . $db->quote("%$keyword%") . ")"
+        : "";
+
+    // Ambil pengeluaran — selalu tampil (tidak hanya saat filter tanggal)
+    $stmt_kel = $db->prepare("
+        SELECT p.id, p.nama_item, p.nominal, p.keterangan,
+               p.created_at, u.nama AS user_nama, c.nama AS cabang_nama
+        FROM pengeluaran p
+        JOIN users  u ON p.user_id   = u.id
+        JOIN cabang c ON p.cabang_id = c.id
+        WHERE 1=1
+        $where_kel
+        $where_tgl_kel
+        $where_kw_kel
+        ORDER BY p.created_at DESC
+        LIMIT 100
+    ");
+    $stmt_kel->execute();
+    $pengeluaran = $stmt_kel->fetchAll();
+
+    $result = getLogsPaginated($cabang_id, $tanggal, $page, $per_page, $keyword);
 
     jsonResponse([
         'success'       => true,

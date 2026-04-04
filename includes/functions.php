@@ -15,7 +15,7 @@ function jsonResponse(array $data, int $code = 200): void {
 }
 
 function clean(string $input): string {
-    return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
+    return strip_tags(trim($input));
 }
 
 // ---- STOK ------------------------------------------------
@@ -114,8 +114,9 @@ function simpanTransaksi(int $user_id, int $cabang_id, array $items, string $cat
             $stmt2 = $db->prepare("INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE jumlah = ?");
             $stmt2->execute([$cabang_id, $bibit_id, $jumlah_baru, $jumlah_baru]);
 
+            $ket_log = "Penjualan #{$kode_nota}" . ($catatan ? " — {$catatan}" : "");
             $stmt3 = $db->prepare("INSERT INTO log_aktivitas (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id) VALUES (?, ?, ?, 'kurang', ?, ?, ?, ?)");
-            $stmt3->execute([$user_id, $cabang_id, $bibit_id, $jumlah_stok, $jumlah_baru, "Penjualan #{$kode_nota}", $transaksi_id]);
+            $stmt3->execute([$user_id, $cabang_id, $bibit_id, $jumlah_stok, $jumlah_baru, $ket_log, $transaksi_id]);
         }
 
         $db->commit();
