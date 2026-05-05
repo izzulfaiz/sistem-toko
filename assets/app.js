@@ -117,20 +117,14 @@ let adminActiveTab = "stok";
 
 async function loadStokData() {
   try {
-    const data = await api(BASE_URL + "/api/stok.php?meta_only=1");
-    stokData = []; // tidak perlu semua stok
+    const data = await api(BASE_URL + "/api/stok.php");
+    stokData = data.stok || [];
     cabangData = data.cabang || [];
     bibitData = data.bibit || [];
-
     if (data.config) {
       window.STOK_WARNING = data.config.stok_warning || STOK_WARNING;
       window.STOK_CRITICAL = data.config.stok_critical || STOK_CRITICAL;
     }
-
-    // Simpan ringkasan untuk metric cards dan alert
-    window.stokRingkasan = data.ringkasan || {};
-    window.stokAlerts = data.alerts || { kritis: [], rendah: [] };
-
     return data;
   } catch (e) {
     console.error("loadStokData:", e);
@@ -184,9 +178,12 @@ function renderAdminContent() {
    TAB STOK
    ================================================ */
 function buildStokTab() {
-  const totalMl = parseFloat(window.stokRingkasan?.total || 0);
-  const lowCount =
-    (window.stokRingkasan?.kritis || 0) + (window.stokRingkasan?.rendah || 0);
+  const totalMl = stokData.reduce((s, r) => s + parseFloat(r.jumlah), 0);
+  const lowCount = stokData.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    return parseFloat(r.jumlah) < (isMl ? STOK_WARNING : 5);
+  }).length;
 
   const pills =
     `<button class="pill ${activeFilter === "all" ? "active" : ""}" onclick="setFilter('all')">Semua</button>` +
@@ -197,28 +194,29 @@ function buildStokTab() {
       )
       .join("");
 
-  // Alert banner dari stokAlerts
-  const alertFilter = activeFilter === "all" ? null : parseInt(activeFilter);
-  const kritisItems = (window.stokAlerts?.kritis || [])
-    .filter((r) => !alertFilter || r.cabang_id == alertFilter)
-    .map(
-      (r) =>
-        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${parseFloat(r.jumlah)} ${esc(r.satuan_dasar || r.satuan || "ml")}</li>`,
-    );
-
-  const rendahItems = (window.stokAlerts?.rendah || [])
-    .filter((r) => !alertFilter || r.cabang_id == alertFilter)
-    .map(
-      (r) =>
-        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${parseFloat(r.jumlah)} ${esc(r.satuan_dasar || r.satuan || "ml")}</li>`,
-    );
-
-  const kritisCount = alertFilter
-    ? kritisItems.length
-    : window.stokRingkasan?.kritis || 0;
-  const rendahCount = alertFilter
-    ? rendahItems.length
-    : window.stokRingkasan?.rendah || 0;
+  let kritisCount = 0,
+    rendahCount = 0;
+  let kritisItems = [],
+    rendahItems = [];
+  stokData.forEach((r) => {
+    if (activeFilter !== "all" && r.cabang_id != activeFilter) return;
+    const v = parseFloat(r.jumlah);
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    const warn = isMl ? STOK_WARNING : 5;
+    const crit = isMl ? STOK_CRITICAL : 2;
+    if (v < crit) {
+      kritisCount++;
+      kritisItems.push(
+        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
+      );
+    } else if (v < warn) {
+      rendahCount++;
+      rendahItems.push(
+        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
+      );
+    }
+  });
 
   let alertBanner = "";
   if (kritisCount > 0 || rendahCount > 0) {
@@ -228,7 +226,6 @@ function buildStokTab() {
     const rendahDetail = rendahItems.length
       ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7;color:var(--text)">${rendahItems.join("")}</ul>`
       : "";
-
     alertBanner = `
     <div id="alert-banner" style="border-radius:10px;overflow:hidden;margin-bottom:12px">
       ${
@@ -275,7 +272,6 @@ function buildStokTab() {
     </div>
     <div id="stok-paginated-content"><div class="loading">Memuat stok...</div></div>`;
 }
-
 function setFilter(f) {
   activeFilter = f;
   renderAdminContent();
@@ -1457,7 +1453,6 @@ async function loadKaryawanData() {
     console.error(e);
   }
 }
-
 /* ================================================
    KARYAWAN — TAB SWITCH
    ================================================ */
