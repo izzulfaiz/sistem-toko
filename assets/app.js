@@ -100,20 +100,194 @@ async function initAdmin() {
   await loadStokData();
   renderAdminContent();
 
-  // Load notifikasi pertama kali
   await loadNotifikasi();
-
-  // Auto refresh stok setiap 30 detik
-  setInterval(async () => {
-    await loadStokData();
-    if (adminActiveTab === "stok") renderAdminContent();
-  }, 30000);
 
   // Auto refresh notifikasi setiap 5 menit
   setInterval(loadNotifikasi, 5 * 60 * 1000);
+
+  // Auto switch orientasi grafik saat resize / putar layar
+  window.addEventListener("resize", () => {
+    if (adminActiveTab === "stok" && dashboardChart) {
+      dashboardChart.destroy();
+      dashboardChart = null;
+      renderDashboardGrafik();
+    }
+  });
 }
 
 let adminActiveTab = "stok";
+
+async function loadOmzetHariIni() {
+  try {
+    const today = new Date();
+    const tgl =
+      today.getFullYear() +
+      "-" +
+      String(today.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(today.getDate()).padStart(2, "0");
+
+    const data = await api(`${BASE_URL}/api/omzet_hari_ini.php?tanggal=${tgl}`);
+    return data.omzet_per_cabang || {};
+  } catch (e) {
+    console.error("loadOmzetHariIni:", e);
+    return {};
+  }
+}
+
+let dashboardChart = null;
+
+async function renderDashboardGrafik() {
+  const canvas = document.getElementById("dashboard-chart");
+  if (!canvas) return {};
+
+  const omzetPerCabang = await loadOmzetHariIni();
+  const labels = Object.keys(omzetPerCabang);
+  const values = Object.values(omzetPerCabang);
+  const maxVal = Math.max(...values);
+  const isMobile = window.innerWidth < 640;
+
+  const bgColors = values.map((v) =>
+    v === maxVal && maxVal > 0
+      ? "rgba(61,82,160,0.9)"
+      : v > 0
+        ? "rgba(61,82,160,0.45)"
+        : "rgba(128,128,128,0.15)",
+  );
+  const borderColors = values.map((v) =>
+    v === maxVal && maxVal > 0
+      ? "rgba(61,82,160,1)"
+      : v > 0
+        ? "rgba(61,82,160,0.6)"
+        : "rgba(128,128,128,0.2)",
+  );
+
+  const shortLabels = labels.map((l) => l.replace(/^Cabang\s+/i, ""));
+
+  // Sesuaikan tinggi canvas
+  const chartWrap = canvas.parentElement;
+  if (chartWrap) {
+    chartWrap.style.height = isMobile ? "240px" : "200px";
+  }
+
+  // Jika chart sudah ada, UPDATE data saja tanpa destroy
+  if (dashboardChart) {
+    dashboardChart.data.labels = shortLabels;
+    dashboardChart.data.datasets[0].data = values;
+    dashboardChart.data.datasets[0].backgroundColor = bgColors;
+    dashboardChart.data.datasets[0].borderColor = borderColors;
+    dashboardChart.update("none");
+
+    const totalHari = values.reduce((s, v) => s + v, 0);
+    const el = document.getElementById("dashboard-total-hari");
+    if (el) el.textContent = "Total: Rp " + totalHari.toLocaleString("id-ID");
+    return omzetPerCabang;
+  }
+
+  // Pertama kali: buat chart baru
+  dashboardChart = new Chart(canvas.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: shortLabels,
+      datasets: [
+        {
+          label: "Omzet Hari Ini (Rp)",
+          data: values,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(20,20,40,0.88)",
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 12, weight: "bold" },
+          bodyFont: { size: 12 },
+          callbacks: {
+            label: (ctx) =>
+              ctx.raw > 0
+                ? "  Rp " + ctx.raw.toLocaleString("id-ID")
+                : "  Belum ada omzet",
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { size: isMobile ? 9 : 11 },
+            maxRotation: isMobile ? 45 : 0,
+            minRotation: isMobile ? 45 : 0,
+            callback: function (val) {
+              const label = this.getLabelForValue(val);
+              const short = label.replace(/^Cabang\s+/i, "");
+              return isMobile && short.length > 8
+                ? short.substring(0, 7) + "…"
+                : short;
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(128,128,128,0.08)" },
+          border: { display: false },
+          ticks: {
+            font: { size: 10 },
+            callback: (v) =>
+              v >= 1000000
+                ? "Rp " + (v / 1000000).toFixed(1) + "jt"
+                : v >= 1000
+                  ? "Rp " + (v / 1000).toFixed(0) + "rb"
+                  : v === 0
+                    ? ""
+                    : "Rp " + v,
+          },
+        },
+      },
+      animation: {
+        duration: 500,
+        easing: "easeOutQuart",
+      },
+    },
+  });
+
+  const totalHari = values.reduce((s, v) => s + v, 0);
+  const el = document.getElementById("dashboard-total-hari");
+  if (el) el.textContent = "Total: Rp " + totalHari.toLocaleString("id-ID");
+
+  return omzetPerCabang;
+}
+
+async function refreshStokManual() {
+  const btn = document.getElementById("btn-refresh-stok");
+  const icon = document.getElementById("icon-refresh-stok");
+
+  // Animasi loading
+  if (icon) icon.style.animation = "spin 0.8s linear infinite";
+  if (btn) btn.disabled = true;
+
+  try {
+    await loadStokData();
+    // Update stok content tanpa rebuild grafik
+    await loadStokPage(stokPage);
+    // Update grafik juga
+    await renderDashboardGrafik();
+    updateAlertBanner();
+    updateMetricCards();
+  } finally {
+    if (icon) icon.style.animation = "";
+    if (btn) btn.disabled = false;
+  }
+}
 
 async function loadStokData() {
   try {
@@ -159,8 +333,15 @@ function renderAdminContent() {
   if (!target) return;
 
   if (adminActiveTab === "stok") {
+    if (dashboardChart) {
+      dashboardChart.destroy();
+      dashboardChart = null;
+    }
     target.innerHTML = buildStokTab();
-    setTimeout(() => loadStokPage(stokPage), 50);
+    setTimeout(() => {
+      loadStokPage(stokPage);
+      renderDashboardGrafik();
+    }, 50);
   }
   if (adminActiveTab === "log") buildLogTab(target);
   if (adminActiveTab === "laporan") {
@@ -263,6 +444,29 @@ function buildStokTab() {
       <div class="metric-card"><div class="metric-label">Jumlah Cabang</div><div class="metric-val">${cabangData.length}</div></div>
       <div class="metric-card"><div class="metric-label">Jenis Produk</div><div class="metric-val">${bibitData.length}</div></div>
       <div class="metric-card"><div class="metric-label">Perlu Restock</div><div class="metric-val" style="color:${lowCount > 0 ? "var(--red)" : "var(--teal)"}">${lowCount}</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin:0">📊 Omzet Hari Ini per Cabang</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="dashboard-total-hari" style="font-size:13px;color:var(--text2)">Memuat...</div>
+          <button onclick="refreshStokManual()" id="btn-refresh-stok"
+            style="background:none;border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px"
+            title="Refresh data stok">
+            <svg id="icon-refresh-stok" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M8 16H3v5"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div style="height:200px;position:relative">
+        <canvas id="dashboard-chart"></canvas>
+      </div>
     </div>
     ${alertBanner}
     <div class="pills">${pills}</div>
@@ -1059,6 +1263,25 @@ function clearSSBibit() {
   $("ss-bibit-input")?.focus();
 }
 
+function updateMetricCards() {
+  const totalMl = stokData.reduce((s, r) => s + parseFloat(r.jumlah), 0);
+  const lowCount = stokData.filter((r) => {
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    return parseFloat(r.jumlah) < (isMl ? STOK_WARNING : 5);
+  }).length;
+
+  // Update nilai metric cards langsung tanpa rebuild HTML
+  const cards = document.querySelectorAll(".metric-card .metric-val");
+  if (cards.length >= 4) {
+    cards[0].textContent = (totalMl / 1000).toFixed(1) + "L"; // Total Stok
+    cards[1].textContent = cabangData.length; // Jumlah Cabang
+    cards[2].textContent = bibitData.length; // Jenis Produk
+    cards[3].textContent = lowCount; // Perlu Restock
+    cards[3].style.color = lowCount > 0 ? "var(--red)" : "var(--teal)";
+  }
+}
+
 function updateModalSatuan() {
   const bibitId = $("ms-bibit")?.value;
   const bibit = bibitData.find((b) => b.id == bibitId);
@@ -1101,6 +1324,77 @@ function openEditStok(cabang_id, bibit_id) {
   }, 100);
 }
 
+function updateAlertBanner() {
+  const bannerEl = document.getElementById("alert-banner");
+  if (!bannerEl) return;
+
+  let kritisCount = 0,
+    rendahCount = 0;
+  let kritisItems = [],
+    rendahItems = [];
+
+  stokData.forEach((r) => {
+    if (activeFilter !== "all" && r.cabang_id != activeFilter) return;
+    const v = parseFloat(r.jumlah);
+    const sat = r.satuan_dasar || r.satuan || "ml";
+    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
+    const warn = isMl ? STOK_WARNING : 5;
+    const crit = isMl ? STOK_CRITICAL : 2;
+    if (v < crit) {
+      kritisCount++;
+      kritisItems.push(
+        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${v} ${esc(sat)}</li>`,
+      );
+    } else if (v < warn) {
+      rendahCount++;
+      rendahItems.push(
+        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${v} ${esc(sat)}</li>`,
+      );
+    }
+  });
+
+  // Kalau tidak ada alert sama sekali, sembunyikan banner
+  if (kritisCount === 0 && rendahCount === 0) {
+    bannerEl.innerHTML = "";
+    return;
+  }
+
+  const kritisDetail = kritisItems.length
+    ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7">${kritisItems.join("")}</ul>`
+    : "";
+  const rendahDetail = rendahItems.length
+    ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7;color:var(--text)">${rendahItems.join("")}</ul>`
+    : "";
+
+  bannerEl.innerHTML = `
+    ${
+      kritisCount > 0
+        ? `
+    <div class="alert alert-danger" style="margin:0 0 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+         onclick="toggleAlertDetail('detail-kritis',this)">
+      <span>🔴 <strong>${kritisCount} produk stok menipis</strong> — klik lonceng 🔔 untuk detail, atau lihat di sini</span>
+      <svg id="chevron-kritis" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div id="detail-kritis" style="display:none;background:var(--red-l,#fff0f0);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--red,#e57373);border-top:none;margin-bottom:4px">
+      ${kritisDetail}
+    </div>`
+        : ""
+    }
+    ${
+      rendahCount > 0
+        ? `
+    <div class="alert alert-warn" style="margin:0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+         onclick="toggleAlertDetail('detail-rendah',this)">
+      <span>🟡 <strong>${rendahCount} produk stok rendah</strong></span>
+      <svg id="chevron-rendah" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div id="detail-rendah" style="display:none;background:var(--warn-l,#fffbe6);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--warn,#f5c518);border-top:none">
+      ${rendahDetail}
+    </div>`
+        : ""
+    }`;
+}
+
 async function saveStokModal() {
   const bibit_id = parseInt($("ms-bibit")?.value);
   const cabangs = getSelectedCabangs();
@@ -1131,7 +1425,11 @@ async function saveStokModal() {
     });
     closeModal("modal-stok");
     await loadStokData();
-    renderAdminContent();
+
+    loadStokPage(stokPage);
+    updateAlertBanner();
+    updateMetricCards();
+
     toastOk(
       `Stok berhasil diupdate ke ${cabangs.length} cabang`,
       "Distribusi Berhasil",
@@ -3853,13 +4151,25 @@ function debounceStokSearch() {
   }, 400);
 }
 
+// GANTI fungsi setFilter yang lama:
 function setFilter(f) {
   activeFilter = f;
   stokPage = 1;
   stokKeyword = "";
-  // Re-render stokTab HTML dulu
-  const target = $("tab-stok");
-  if (target) target.innerHTML = buildStokTab();
+
+  // Update pill aktif tanpa rebuild seluruh HTML
+  document.querySelectorAll(".pill").forEach((btn) => {
+    const btnFilter = btn
+      .getAttribute("onclick")
+      .match(/setFilter\((.+?)\)/)?.[1];
+    const btnVal =
+      btnFilter === "'all'" || btnFilter === '"all"'
+        ? "all"
+        : parseInt(btnFilter);
+    btn.classList.toggle("active", String(btnVal) === String(f));
+  });
+
+  // Hanya reload stok content (tanpa rebuild grafik)
   loadStokPage(1);
 }
 
@@ -4093,3 +4403,4 @@ function toggleDarkMode() {
     });
   }
 })();
+//thank you//
