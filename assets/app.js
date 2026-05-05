@@ -117,16 +117,20 @@ let adminActiveTab = "stok";
 
 async function loadStokData() {
   try {
-    const data = await api(BASE_URL + "/api/stok.php");
-    stokData = data.stok || [];
+    const data = await api(BASE_URL + "/api/stok.php?meta_only=1");
+    stokData = []; // tidak perlu semua stok
     cabangData = data.cabang || [];
     bibitData = data.bibit || [];
 
-    // Sync threshold dari server config (agar sinkron dengan PHP)
     if (data.config) {
       window.STOK_WARNING = data.config.stok_warning || STOK_WARNING;
       window.STOK_CRITICAL = data.config.stok_critical || STOK_CRITICAL;
     }
+
+    // Simpan ringkasan untuk metric cards dan alert
+    window.stokRingkasan = data.ringkasan || {};
+    window.stokAlerts = data.alerts || { kritis: [], rendah: [] };
+
     return data;
   } catch (e) {
     console.error("loadStokData:", e);
@@ -180,12 +184,9 @@ function renderAdminContent() {
    TAB STOK
    ================================================ */
 function buildStokTab() {
-  const totalMl = stokData.reduce((s, r) => s + parseFloat(r.jumlah), 0);
-  const lowCount = stokData.filter((r) => {
-    const sat = r.satuan_dasar || r.satuan || "ml";
-    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-    return parseFloat(r.jumlah) < (isMl ? STOK_WARNING : 5);
-  }).length;
+  const totalMl = parseFloat(window.stokRingkasan?.total || 0);
+  const lowCount =
+    (window.stokRingkasan?.kritis || 0) + (window.stokRingkasan?.rendah || 0);
 
   const pills =
     `<button class="pill ${activeFilter === "all" ? "active" : ""}" onclick="setFilter('all')">Semua</button>` +
@@ -196,62 +197,83 @@ function buildStokTab() {
       )
       .join("");
 
-  const cabangs =
-    activeFilter === "all"
-      ? cabangData
-      : cabangData.filter((c) => c.id == activeFilter);
+  // Alert banner dari stokAlerts
+  const alertFilter = activeFilter === "all" ? null : parseInt(activeFilter);
+  const kritisItems = (window.stokAlerts?.kritis || [])
+    .filter((r) => !alertFilter || r.cabang_id == alertFilter)
+    .map(
+      (r) =>
+        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${parseFloat(r.jumlah)} ${esc(r.satuan_dasar || r.satuan || "ml")}</li>`,
+    );
 
-  let alerts = "";
-  stokData.forEach((r) => {
-    if (activeFilter !== "all" && r.cabang_id != activeFilter) return;
-    const v = parseFloat(r.jumlah);
-    const sat = r.satuan_dasar || r.satuan || "ml";
-    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-    const warn = isMl ? STOK_WARNING : 5;
-    const crit = isMl ? STOK_CRITICAL : 2;
-    if (v <= crit)
-      alerts += `<div class="alert alert-danger">Menipis: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
-    else if (v <= warn)
-      alerts += `<div class="alert alert-warn">Peringatan: <strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa <strong>${parseFloat(v)} ${esc(sat)}</strong></div>`;
-  });
+  const rendahItems = (window.stokAlerts?.rendah || [])
+    .filter((r) => !alertFilter || r.cabang_id == alertFilter)
+    .map(
+      (r) =>
+        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${parseFloat(r.jumlah)} ${esc(r.satuan_dasar || r.satuan || "ml")}</li>`,
+    );
 
-  const cards = cabangs
-    .map((c) => {
-      const rows = stokData
-        .filter((r) => r.cabang_id == c.id)
-        .map((r) => {
-          const v = parseFloat(r.jumlah);
-          const sat = r.satuan_dasar || r.satuan || "ml";
-          const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-          const warn = isMl ? STOK_WARNING : 5;
-          const crit = isMl ? STOK_CRITICAL : 2;
-          const maxD = isMl ? STOK_MAX : 50;
-          const pct = Math.min(100, Math.round((v / maxD) * 100));
-          const cls = v <= crit ? "crit" : v <= warn ? "low" : "ok";
-          return `<div class="stock-row">
-        <div>
-          <div class="stock-name">${esc(r.bibit_nama)}</div>
-          <div class="prog"><div class="prog-fill prog-${cls}" style="width:${pct}%"></div></div>
-        </div>
-        <span class="badge badge-${cls}">${cls === "ok" ? "OK" : cls === "low" ? "Rendah" : "Menipis"}</span>
-        <span style="font-size:13px;font-weight:600;color:${v <= warn ? "var(--red)" : "var(--teal)"}">${parseFloat(v)} ${esc(sat)}</span>
-        <button class="btn btn-sm" onclick="openEditStok(${c.id},${r.bibit_id})">Edit</button>
-      </div>`;
-        })
-        .join("");
-      return `<div class="card">
-      <div class="card-header"><span class="card-title">${esc(c.nama)}</span><span class="live-badge"><span class="pulse"></span>Live</span></div>
-      ${rows}
+  const kritisCount = alertFilter
+    ? kritisItems.length
+    : window.stokRingkasan?.kritis || 0;
+  const rendahCount = alertFilter
+    ? rendahItems.length
+    : window.stokRingkasan?.rendah || 0;
+
+  let alertBanner = "";
+  if (kritisCount > 0 || rendahCount > 0) {
+    const kritisDetail = kritisItems.length
+      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7">${kritisItems.join("")}</ul>`
+      : "";
+    const rendahDetail = rendahItems.length
+      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7;color:var(--text)">${rendahItems.join("")}</ul>`
+      : "";
+
+    alertBanner = `
+    <div id="alert-banner" style="border-radius:10px;overflow:hidden;margin-bottom:12px">
+      ${
+        kritisCount > 0
+          ? `
+      <div class="alert alert-danger" style="margin:0 0 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+           onclick="toggleAlertDetail('detail-kritis',this)">
+        <span>🔴 <strong>${kritisCount} produk stok menipis</strong> — klik lonceng 🔔 untuk detail, atau lihat di sini</span>
+        <svg id="chevron-kritis" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div id="detail-kritis" style="display:none;background:var(--red-l,#fff0f0);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--red,#e57373);border-top:none;margin-bottom:4px">
+        ${kritisDetail}
+      </div>`
+          : ""
+      }
+      ${
+        rendahCount > 0
+          ? `
+      <div class="alert alert-warn" style="margin:0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+           onclick="toggleAlertDetail('detail-rendah',this)">
+        <span>🟡 <strong>${rendahCount} produk stok rendah</strong></span>
+        <svg id="chevron-rendah" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div id="detail-rendah" style="display:none;background:var(--warn-l,#fffbe6);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--warn,#f5c518);border-top:none">
+        ${rendahDetail}
+      </div>`
+          : ""
+      }
     </div>`;
-    })
-    .join("");
+  }
 
-  return `<div class="metrics-grid">
-    <div class="metric-card"><div class="metric-label">Total Stok</div><div class="metric-val">${(totalMl / 1000).toFixed(1)}L</div></div>
-    <div class="metric-card"><div class="metric-label">Jumlah Cabang</div><div class="metric-val">${cabangData.length}</div></div>
-    <div class="metric-card"><div class="metric-label">Jenis Produk</div><div class="metric-val">${bibitData.length}</div></div>
-    <div class="metric-card"><div class="metric-label">Perlu Restock</div><div class="metric-val" style="color:${lowCount > 0 ? "var(--red)" : "var(--teal)"}">${lowCount}</div></div>
-  </div>${alerts}<div class="pills">${pills}</div>${cards}`;
+  return `
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="metric-label">Total Stok</div><div class="metric-val">${(totalMl / 1000).toFixed(1)}L</div></div>
+      <div class="metric-card"><div class="metric-label">Jumlah Cabang</div><div class="metric-val">${cabangData.length}</div></div>
+      <div class="metric-card"><div class="metric-label">Jenis Produk</div><div class="metric-val">${bibitData.length}</div></div>
+      <div class="metric-card"><div class="metric-label">Perlu Restock</div><div class="metric-val" style="color:${lowCount > 0 ? "var(--red)" : "var(--teal)"}">${lowCount}</div></div>
+    </div>
+    ${alertBanner}
+    <div class="pills">${pills}</div>
+    <div class="stok-search-bar">
+      <input type="text" id="stok-keyword" placeholder="Cari nama produk..."
+        value="${esc(stokKeyword)}" oninput="debounceStokSearch()"/>
+    </div>
+    <div id="stok-paginated-content"><div class="loading">Memuat stok...</div></div>`;
 }
 
 function setFilter(f) {
@@ -1127,14 +1149,14 @@ function openBibitModal() {
   $("mb-nama").value = $("mb-stok").value = "";
   if ($("mb-err")) $("mb-err").textContent = "";
   if ($("mb-kategori")) {
-    $("mb-kategori").value = "parfum";
+    $("mb-kategori").value = "parfum_baju";
     updateSatuanOptions();
   }
   openModal("modal-bibit");
 }
 
 function updateSatuanOptions() {
-  const kat = $("mb-kategori")?.value || "lainnya";
+  const kat = $("mb-kategori")?.value || "parfum_baju";
   const all = [
     { v: "ml", d: "ml", k: 1, l: "ml" },
     { v: "liter", d: "ml", k: 1000, l: "liter (1000ml)" },
@@ -1148,10 +1170,11 @@ function updateSatuanOptions() {
     { v: "box", d: "box", k: 1, l: "box" },
   ];
   const map = {
-    parfum: ["ml", "liter", "gram"],
-    laundry: ["botol", "pcs", "liter", "ml"],
+    parfum_baju: ["ml", "liter", "gram"],
+    parfum_religi: ["ml", "liter", "gram"],
+    parfum_spiritual: ["ml", "liter", "gram"],
+    parfum_laundry: ["botol", "pcs", "liter", "ml"],
     aksesoris: ["pcs", "lusin", "kodi", "box", "pack"],
-    lainnya: all.map((o) => o.v),
   };
   const allowed = map[kat] || all.map((o) => o.v);
   const sel = $("mb-satuan");
@@ -1188,6 +1211,7 @@ async function saveBibit() {
   const body = {
     action: "tambah_bibit",
     nama: $("mb-nama").value.trim(),
+    kategori: $("mb-kategori")?.value || "parfum_baju",
     stok_awal: parseFloat($("mb-stok").value) || 0,
     satuan: sel?.value || "ml",
     satuan_dasar: opt?.dataset.dasar || "ml",
@@ -1267,46 +1291,108 @@ async function simpanEditCabang(id) {
   }
 }
 
+// Buka modal edit produk
 function editInlineBibit(id, namaLama) {
-  const wrap = document.getElementById("produk-list-wrap");
-  if (!wrap) return;
-  // Cari row berdasarkan id bibit
-  const rows = wrap.querySelectorAll("[id^='bibit-row-']");
-  const row = document.getElementById("bibit-row-" + id);
-  if (!row) return;
-  row.innerHTML = `
-    <input type="text" id="edit-bibit-input-${id}" value="${esc(namaLama)}"
-      style="flex:1;font-size:13px;padding:5px 8px;border:1px solid var(--amber);border-radius:6px;outline:none"
-      onkeydown="if(event.key==='Enter') simpanEditBibit(${id}); if(event.key==='Escape') renderProdukList();"/>
-    <div style="display:flex;gap:6px;flex-shrink:0">
-      <button class="btn btn-sm btn-primary" onclick="simpanEditBibit(${id})">Simpan</button>
-      <button class="btn btn-sm" onclick="renderProdukList()">Batal</button>
-    </div>`;
-  document.getElementById("edit-bibit-input-" + id)?.focus();
+  const produk = bibitData.find((b) => b.id == id);
+  if (!produk) return;
+
+  document.getElementById("eb-id").value = id;
+  document.getElementById("eb-nama").value = produk.nama || namaLama;
+  document.getElementById("eb-deskripsi").value = produk.deskripsi || "";
+  document.getElementById("eb-tampil-landing").checked = !!parseInt(
+    produk.tampil_landing,
+  );
+
+  const selKat = document.getElementById("eb-kategori");
+  if (selKat && produk.kategori) selKat.value = produk.kategori;
+
+  // Foto existing
+  const fotoExisting = document.getElementById("eb-foto-existing");
+  const fotoExistingImg = document.getElementById("eb-foto-existing-img");
+  if (produk.foto) {
+    fotoExistingImg.src = `${BASE_URL}/images/produk/${produk.foto}`;
+    fotoExisting.style.display = "block";
+  } else {
+    fotoExisting.style.display = "none";
+    fotoExistingImg.src = "";
+  }
+
+  clearFotoEditBibit();
+  const err = document.getElementById("eb-err");
+  if (err) err.textContent = "";
+
+  openModal("modal-edit-bibit");
 }
 
-async function simpanEditBibit(id) {
-  const input = document.getElementById("edit-bibit-input-" + id);
-  const nama = input?.value.trim();
+function previewFotoEditBibit(input) {
+  const preview = document.getElementById("eb-foto-preview");
+  const img = document.getElementById("eb-foto-preview-img");
+  if (!preview || !img) return;
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target.result;
+      preview.style.display = "block";
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function clearFotoEditBibit() {
+  const input = document.getElementById("eb-foto");
+  const preview = document.getElementById("eb-foto-preview");
+  const img = document.getElementById("eb-foto-preview-img");
+  if (input) input.value = "";
+  if (img) img.src = "";
+  if (preview) preview.style.display = "none";
+}
+
+async function simpanEditBibit() {
+  const id = document.getElementById("eb-id")?.value;
+  const nama = document.getElementById("eb-nama")?.value.trim();
+  const err = document.getElementById("eb-err");
+
   if (!nama) {
-    toastWarn("Nama produk tidak boleh kosong");
+    if (err) err.textContent = "Nama produk tidak boleh kosong";
     return;
   }
+
+  const form = new FormData();
+  form.append("action", "edit_bibit");
+  form.append("id", id);
+  form.append("nama", nama);
+  form.append(
+    "kategori",
+    document.getElementById("eb-kategori")?.value || "parfum_baju",
+  );
+  form.append(
+    "deskripsi",
+    document.getElementById("eb-deskripsi")?.value?.trim() || "",
+  );
+  form.append(
+    "tampil_landing",
+    document.getElementById("eb-tampil-landing")?.checked ? 1 : 0,
+  );
+
+  const fotoFile = document.getElementById("eb-foto")?.files?.[0];
+  if (fotoFile) form.append("foto", fotoFile);
+
   try {
-    const res = await api(BASE_URL + "/api/users.php", "PATCH", {
-      action: "edit_bibit",
-      id,
-      nama,
+    const res = await fetch(BASE_URL + "/api/users.php", {
+      method: "POST",
+      body: form,
     });
-    if (res.success) {
-      toastOk("Nama produk diperbarui");
-      await loadStokData();
-      renderProdukList();
-    } else {
-      toastErr(res.message || "Gagal menyimpan");
-    }
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Gagal menyimpan");
+
+    closeModal("modal-edit-bibit");
+    clearFotoEditBibit();
+    await loadStokData();
+    renderProdukList();
+    toastOk("Produk berhasil diperbarui");
   } catch (e) {
-    toastErr(e.message);
+    if (err) err.textContent = e.message;
+    else toastErr(e.message);
   }
 }
 
@@ -1671,125 +1757,13 @@ Aksi ini tidak bisa diurungkan.`)
 }
 
 function printNota(t) {
-  const toko =
-    typeof TOKO_NAMA !== "undefined" ? TOKO_NAMA : "Mekar Wangi Indonesia";
-  const cabang =
-    typeof CURRENT_USER !== "undefined" ? CURRENT_USER.cabang_nama || "" : "";
-  const items = (t.items || [])
-    .map(
-      (item) =>
-        `<tr>
-      <td>${esc(item.bibit_nama)}</td>
-      <td style="text-align:center">${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}</td>
-      <td style="text-align:right">Rp ${parseFloat(item.harga_satuan).toLocaleString("id-ID")}</td>
-      <td style="text-align:right">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</td>
-    </tr>`,
-    )
-    .join("");
-
-  const total = parseFloat(t.total).toLocaleString("id-ID");
-  const waktu = t.created_at || "";
-  const catatan = t.catatan
-    ? `<div class="catatan">📝 ${esc(t.catatan)}</div>`
-    : "";
-
-  const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Nota ${esc(t.kode_nota)}</title>
-  <style>
-    /* =============================================
-       PENGATURAN UKURAN KERTAS THERMAL
-       Ganti nilai di bawah sesuai printer kamu:
-       - Kertas 58mm  → width: 58mm
-       - Kertas 80mm  → width: 80mm
-       ============================================= */
-    :root {
-      --paper-width: 58mm;   /* ← UBAH DI SINI sesuai lebar kertas */
-      --font-size: 15px;     /* ← UBAH jika teks terlalu kecil/besar */
-    }
-    @page {
-      size: var(--paper-width) auto;
-      margin: 0;
-    }
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Montserrat', sans-serif; font-size: var(--font-size); width: var(--paper-width); margin: 0 auto; padding: 8px; }
-    .header { text-align:center; border-bottom: 1px dashed #000; padding-bottom:8px; margin-bottom:8px; }
-    .header h2 { font-size:14px; font-weight:700; }
-    .header p { font-size:11px; color:#555; margin-top:2px; }
-    .nota-info { margin-bottom:8px; font-size:11px; }
-    .nota-info div { display:flex; justify-content:space-between; margin-bottom:2px; }
-    table { width:100%; border-collapse:collapse; margin-bottom:8px; }
-    th { font-size:10px; border-bottom:1px solid #000; padding:3px 2px; text-align:left; }
-    td { font-size:11px; padding:3px 2px; vertical-align:top; }
-    .total-row { border-top:1px dashed #000; padding-top:6px; display:flex; justify-content:space-between; font-weight:700; font-size:13px; margin-bottom:8px; }
-    .catatan { font-size:11px; color:#555; margin-bottom:8px; }
-    .footer { text-align:center; border-top:1px dashed #000; padding-top:8px; font-size:10px; color:#777; }
-    @media print {
-      body { width:100%; }
-      button { display:none !important; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h2>${esc(toko)}</h2>
-    <p>${esc(cabang)}</p>
-    <p style="margin-top:4px;font-size:10px">================================</p>
-  </div>
-  <div class="nota-info">
-    <div><span>No. Nota</span><span><b>${esc(t.kode_nota)}</b></span></div>
-    <div><span>Waktu</span><span>${esc(waktu)}</span></div>
-    <div><span>Kasir</span><span>${esc(t.user_nama || "")}</span></div>
-  </div>
-  <table>
-    <thead><tr><th>Produk</th><th style="text-align:center">Jml</th><th style="text-align:right">Harga</th><th style="text-align:right">Total</th></tr></thead>
-    <tbody>${items}</tbody>
-  </table>
-  <div class="total-row">
-    <span>TOTAL</span>
-    <span>Rp ${total}</span>
-  </div>
-  ${catatan}
-  <div class="footer">
-    <p>Terima kasih atas pembelian Anda!</p>
-    <p style="margin-top:4px">${esc(toko)}</p>
-  </div>
-  <div style="text-align:center;margin-top:12px">
-    <button onclick="window.print()" style="padding:6px 20px;font-size:12px;cursor:pointer;border:1px solid #333;border-radius:4px;background:#fff">🖨️ Print</button>
-  </div>
-</body>
-</html>`;
-
-  // Gunakan iframe tersembunyi agar tidak diblokir browser mobile (HP)
-  let iframe = document.getElementById("print-nota-frame");
-  if (iframe) iframe.remove();
-
-  iframe = document.createElement("iframe");
-  iframe.id = "print-nota-frame";
-  iframe.style.cssText =
-    "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;";
-  document.body.appendChild(iframe);
-
-  iframe.contentDocument.open();
-  iframe.contentDocument.write(html);
-  iframe.contentDocument.close();
-
-  setTimeout(() => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } catch (e) {
-      // Fallback jika iframe gagal — buka tab baru
-      const win = window.open("", "_blank");
-      if (win) {
-        win.document.write(html);
-        win.document.close();
-        setTimeout(() => win.print(), 400);
-      } else toastWarn("Tidak bisa mencetak. Coba izinkan popup di browser.");
-    }
-  }, 600);
+  const kode = t.kode_nota;
+  if (!kode) {
+    toastErr("Kode nota tidak ditemukan");
+    return;
+  }
+  window.location.href =
+    BASE_URL + "/nota.php?kode=" + encodeURIComponent(kode);
 }
 
 async function exportPDFKaryawan() {
@@ -2477,34 +2451,17 @@ function buildGrafik(canvasId, labels, omzetData, trxData, labaData) {
 }
 
 function buildRekapHTML(data, showCabangBreakdown) {
-  const namaBulan = [
-    "",
-    "Januari",
-    "Februari",
-    "Maret",
-    "April",
-    "Mei",
-    "Juni",
-    "Juli",
-    "Agustus",
-    "September",
-    "Oktober",
-    "November",
-    "Desember",
-  ];
-
-  // Summary cards
   const laba = parseFloat(data.laba_bersih || data.total_omzet || 0);
   const totalKeluar = parseFloat(data.total_keluar || 0);
   const labaColor = laba >= 0 ? "var(--green)" : "var(--red)";
 
   const summaryHTML = `
     <div class="rekap-summary">
-      <div class="rekap-sum-card">
+      <div class="rekap-sum-card" style="border:1.5px solid var(--amber-m)">
         <div class="rekap-sum-val" style="color:var(--blue)">Rp ${parseFloat(data.total_omzet || 0).toLocaleString("id-ID")}</div>
         <div class="rekap-sum-lbl">Total Pemasukan</div>
       </div>
-      <div class="rekap-sum-card">
+      <div class="rekap-sum-card" style="border:1.5px solid #FF85BB">
         <div class="rekap-sum-val" style="color:var(--red)">Rp ${totalKeluar.toLocaleString("id-ID")}</div>
         <div class="rekap-sum-lbl">Total Pengeluaran</div>
       </div>
@@ -2526,7 +2483,6 @@ function buildRekapHTML(data, showCabangBreakdown) {
       </div>
     </div>`;
 
-  // Grafik
   const grafikHTML = `
     <div class="rekap-card">
       <div class="rekap-card-title">Grafik Omzet Harian — ${esc(data.periode)}</div>
@@ -2535,29 +2491,27 @@ function buildRekapHTML(data, showCabangBreakdown) {
       </div>
     </div>`;
 
-  // Tabel per cabang (hanya admin / kalau ada lebih dari 1)
+  // ---- TABEL CABANG ----
   let cabangHTML = "";
   if (showCabangBreakdown && data.per_cabang?.length > 1) {
-    const rows = data.per_cabang
-      .map((c, i) => {
-        const kel = (data.keluar_per_cabang || []).find(
-          (k) => k.cabang_id == c.cabang_id,
-        );
-        const keluar = parseFloat(kel?.total_keluar || 0);
-        const laba = parseFloat(c.total_omzet || 0) - keluar;
-        const labaColor = laba >= 0 ? "var(--green)" : "var(--red)";
-        return `
-      <tr>
-        <td>${i + 1}</td>
-        <td><strong>${esc(c.cabang_nama)}</strong></td>
-        <td style="text-align:right">${c.jumlah_transaksi || 0}</td>
-        <td style="text-align:right"><strong>Rp ${parseFloat(c.total_omzet || 0).toLocaleString("id-ID")}</strong></td>
-        <td style="text-align:right;color:var(--red)">Rp ${keluar.toLocaleString("id-ID")}</td>
-        <td style="text-align:right;color:${labaColor};"><strong>Rp ${laba.toLocaleString("id-ID")}</strong></td>
-        <td style="text-align:right">Rp ${Math.round(parseFloat(c.rata_transaksi || 0)).toLocaleString("id-ID")}</td>
-      </tr>`;
-      })
-      .join("");
+    const cabangRows = data.per_cabang.map((c) => {
+      const kel = (data.keluar_per_cabang || []).find(
+        (k) => k.cabang_id == c.cabang_id,
+      );
+      const keluar = parseFloat(kel?.total_keluar || 0);
+      const lbCabang = parseFloat(c.total_omzet || 0) - keluar;
+      return {
+        nama: c.cabang_nama,
+        trx: parseInt(c.jumlah_transaksi || 0),
+        omzet: parseFloat(c.total_omzet || 0),
+        keluar: keluar,
+        laba: lbCabang,
+        rata: Math.round(parseFloat(c.rata_transaksi || 0)),
+      };
+    });
+
+    window._cabangData = cabangRows;
+    window._cabangSort = { key: null, asc: true };
 
     cabangHTML = `
       <div class="rekap-card">
@@ -2566,23 +2520,23 @@ function buildRekapHTML(data, showCabangBreakdown) {
         <table>
           <thead><tr>
             <th>#</th>
-            <th>Cabang</th>
-            <th style="text-align:right">Transaksi</th>
-            <th style="text-align:right">Total Omzet</th>
-            <th style="text-align:right">Pengeluaran</th>
-            <th style="text-align:right">Laba Bersih</th>
-            <th style="text-align:right">Rata-rata/Nota</th>
+            <th onclick="sortRekap('cabang','nama')" style="cursor:pointer">Cabang <span id="si-cab-nama">↕</span></th>
+            <th onclick="sortRekap('cabang','trx')" style="cursor:pointer;text-align:right">Transaksi <span id="si-cab-trx">↕</span></th>
+            <th onclick="sortRekap('cabang','omzet')" style="cursor:pointer;text-align:right">Total Omzet <span id="si-cab-omzet">↕</span></th>
+            <th onclick="sortRekap('cabang','keluar')" style="cursor:pointer;text-align:right">Pengeluaran <span id="si-cab-keluar">↕</span></th>
+            <th onclick="sortRekap('cabang','laba')" style="cursor:pointer;text-align:right">Laba Bersih <span id="si-cab-laba">↕</span></th>
+            <th onclick="sortRekap('cabang','rata')" style="cursor:pointer;text-align:right">Rata-rata/Nota <span id="si-cab-rata">↕</span></th>
           </tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody id="tbody-cabang"></tbody>
         </table></div>
       </div>`;
+
+    setTimeout(() => renderCabangRows(), 0);
   }
 
-  // Tabel produk terlaris
-  let terlaris = data.produk_terlaris || [];
-  // Gabungkan per produk (bisa ada duplikat beda satuan)
+  // ---- TABEL PRODUK TERLARIS ----
   const terlarisMap = {};
-  terlaris.forEach((p) => {
+  (data.produk_terlaris || []).forEach((p) => {
     const key = p.bibit_id;
     if (!terlarisMap[key]) {
       terlarisMap[key] = {
@@ -2601,20 +2555,8 @@ function buildRekapHTML(data, showCabangBreakdown) {
     .sort((a, b) => b.total_omzet - a.total_omzet)
     .slice(0, 10);
 
-  const terlarisRows = terlarisArr.length
-    ? terlarisArr
-        .map(
-          (p, i) => `
-      <tr>
-        <td><span style="font-size:13px;font-weight:700;color:${i < 3 ? "var(--amber)" : "var(--text2)"}">${i + 1}</span></td>
-        <td><strong>${esc(p.bibit_nama)}</strong></td>
-        <td style="text-align:right">${p.total_terjual} ${esc(p.satuan_jual || p.satuan || "")}</td>
-        <td style="text-align:right">${p.frekuensi}x</td>
-        <td style="text-align:right"><strong>Rp ${p.total_omzet.toLocaleString("id-ID")}</strong></td>
-      </tr>`,
-        )
-        .join("")
-    : `<tr><td colspan="5" class="empty">Belum ada data penjualan</td></tr>`;
+  window._produkData = terlarisArr;
+  window._produkSort = { key: null, asc: true };
 
   const terlarisHTML = `
     <div class="rekap-card">
@@ -2623,16 +2565,110 @@ function buildRekapHTML(data, showCabangBreakdown) {
       <table>
         <thead><tr>
           <th>#</th>
-          <th>Produk</th>
-          <th style="text-align:right">Terjual</th>
-          <th style="text-align:right">Frekuensi</th>
-          <th style="text-align:right">Omzet</th>
+          <th onclick="sortRekap('produk','bibit_nama')" style="cursor:pointer">Produk <span id="si-prod-nama">↕</span></th>
+          <th onclick="sortRekap('produk','total_terjual')" style="cursor:pointer;text-align:right">Terjual <span id="si-prod-terjual">↕</span></th>
+          <th onclick="sortRekap('produk','frekuensi')" style="cursor:pointer;text-align:right">Frekuensi <span id="si-prod-frek">↕</span></th>
+          <th onclick="sortRekap('produk','total_omzet')" style="cursor:pointer;text-align:right">Omzet <span id="si-prod-omzet">↕</span></th>
         </tr></thead>
-        <tbody>${terlarisRows}</tbody>
+        <tbody id="tbody-produk"></tbody>
       </table></div>
     </div>`;
 
+  setTimeout(() => renderProdukRows(), 0);
+
   return summaryHTML + grafikHTML + cabangHTML + terlarisHTML;
+}
+
+// ---- RENDER ROWS ----
+function renderCabangRows() {
+  const tbody = document.getElementById("tbody-cabang");
+  if (!tbody) return;
+  const rows = window._cabangData || [];
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Belum ada data</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows
+    .map((c, i) => {
+      const labaColor = c.laba >= 0 ? "var(--green)" : "var(--red)";
+      return `<tr>
+      <td>${i + 1}</td>
+      <td><strong>${esc(c.nama)}</strong></td>
+      <td style="text-align:right">${c.trx}</td>
+      <td style="text-align:right"><strong>Rp ${c.omzet.toLocaleString("id-ID")}</strong></td>
+      <td style="text-align:right;color:var(--red)">Rp ${c.keluar.toLocaleString("id-ID")}</td>
+      <td style="text-align:right;color:${labaColor}"><strong>Rp ${c.laba.toLocaleString("id-ID")}</strong></td>
+      <td style="text-align:right">Rp ${c.rata.toLocaleString("id-ID")}</td>
+    </tr>`;
+    })
+    .join("");
+}
+
+function renderProdukRows() {
+  const tbody = document.getElementById("tbody-produk");
+  if (!tbody) return;
+  const rows = window._produkData || [];
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Belum ada data penjualan</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (p, i) => `
+    <tr>
+      <td><span style="font-size:13px;font-weight:700;color:${i < 3 ? "var(--amber)" : "var(--text2)"}">${i + 1}</span></td>
+      <td><strong>${esc(p.bibit_nama)}</strong></td>
+      <td style="text-align:right">${p.total_terjual} ${esc(p.satuan_jual || p.satuan || "")}</td>
+      <td style="text-align:right">${p.frekuensi}x</td>
+      <td style="text-align:right"><strong>Rp ${p.total_omzet.toLocaleString("id-ID")}</strong></td>
+    </tr>`,
+    )
+    .join("");
+}
+
+// ---- SORT ----
+function sortRekap(tbl, key) {
+  const isCabang = tbl === "cabang";
+  const sortState = isCabang ? window._cabangSort : window._produkSort;
+  const data = isCabang ? window._cabangData : window._produkData;
+
+  // Toggle asc/desc jika key sama, reset jika key beda
+  if (sortState.key === key) {
+    sortState.asc = !sortState.asc;
+  } else {
+    sortState.key = key;
+    sortState.asc = true;
+  }
+
+  // Reset semua ikon sort
+  document
+    .querySelectorAll('[id^="si-cab-"], [id^="si-prod-"]')
+    .forEach((el) => {
+      el.textContent = "↕";
+      el.style.opacity = "0.4";
+    });
+
+  // Set ikon aktif
+  const iconId = isCabang
+    ? `si-cab-${key}`
+    : `si-prod-${key === "bibit_nama" ? "nama" : key === "total_terjual" ? "terjual" : key === "frekuensi" ? "frek" : "omzet"}`;
+  const icon = document.getElementById(iconId);
+  if (icon) {
+    icon.textContent = sortState.asc ? "↑" : "↓";
+    icon.style.opacity = "1";
+  }
+
+  // Sort data
+  data.sort((a, b) => {
+    const av = a[key],
+      bv = b[key];
+    if (typeof av === "string")
+      return sortState.asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortState.asc ? av - bv : bv - av;
+  });
+
+  // Re-render
+  isCabang ? renderCabangRows() : renderProdukRows();
 }
 
 /* ================================================
@@ -2652,11 +2688,11 @@ async function buildRekapTab(target) {
         <div id="rekap-cabang-wrap" style="position:relative;flex:1;min-width:0">
           <button type="button" id="rekap-cabang-btn"
             onclick="toggleRekapCabangDrop()"
-            style="width:100%;text-align:left;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+            style="width:100%;text-align:left;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center">
             <span id="rekap-cabang-label">Semua Cabang</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div id="rekap-cabang-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:99;background:#fff;border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:8px;min-width:200px">
+          <div id="rekap-cabang-drop" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:99;border:0.5px solid var(--border);background:var(--bg);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:8px;min-width:200px">
             <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);margin-bottom:4px">
               <input type="checkbox" id="rekap-cab-all" checked onchange="toggleSemuaRekapCabang(this)"
                 style="width:15px;height:15px;accent-color:var(--amber)"/>
@@ -2683,17 +2719,17 @@ async function buildRekapTab(target) {
       <div style="display:flex;align-items:center;gap:8px">
         <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;width:55px">Bulan:</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
-          <select id="rekap-bulan" onchange="loadRekapAdmin()" style="flex:1;min-width:0;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"></select>
-          <select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:85px;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"></select>
+          <select id="rekap-bulan" onchange="loadRekapAdmin()" style="flex:1;min-width:0;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;font-size:13px"></select>
+          <select id="rekap-tahun" onchange="loadRekapAdmin()" style="width:85px;padding:7px 10px;border:0.5px solid var(--border);border-radius:8px;font-size:13px"></select>
         </div>
       </div>
 
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;width:55px">Dari:</label>
-        <input type="date" id="rekap-tgl-dari" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"
+        <input type="date" id="rekap-tgl-dari" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;font-size:13px"
           onchange="rekapTglDari=this.value;loadRekapAdmin()"/>
         <label style="font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;margin-left:4px">Sampai:</label>
-        <input type="date" id="rekap-tgl-sampai" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;background:#fff;font-size:13px"
+        <input type="date" id="rekap-tgl-sampai" style="flex:1;min-width:115px;padding:6px 10px;border:0.5px solid var(--border);border-radius:8px;font-size:13px"
           onchange="rekapTglSampai=this.value;loadRekapAdmin()"/>
         <button class="btn btn-sm" onclick="resetRentangRekap()" title="Reset filter tanggal"
           style="white-space:nowrap;padding:7px 10px">✕ Reset</button>
@@ -3535,86 +3571,49 @@ async function loadLogPage(page) {
       )
       .join("");
 
-    // Gabungkan log stok dan pengeluaran dalam 1 list diurutkan by waktu
+    // Render pengeluaran jika ada filter tanggal
     const pengeluaran = data.pengeluaran || [];
-
-    // Convert pengeluaran ke format yang sama dengan log
-    const kelRows = pengeluaran
-      .map(
-        (p) => `
-      <div class="log-row" style="flex-wrap:wrap;gap:6px">
-        <div class="log-dot" style="background:var(--red);flex-shrink:0"></div>
-        <div style="flex:1;min-width:0">
-          <div class="log-info" style="word-break:break-word">
-            <strong>${esc(p.user_nama)}</strong> —
-            Pengeluaran: <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
-            senilai <strong style="color:var(--red)">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
-            ${p.keterangan ? " (" + esc(p.keterangan) + ")" : ""}
-          </div>
-          <div class="log-meta">💸 Pengeluaran</div>
+    const kelHTML =
+      pengeluaran.length && logTanggal
+        ? `
+      <div class="card" style="margin-top:12px">
+        <div class="card-header">
+          <span class="card-title">Pengeluaran</span>
+          <span style="font-size:12px;color:var(--text2)">${pengeluaran.length} item</span>
         </div>
-        <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
-          ${p.created_at.replace(" ", "<br/>")}
-        </div>
-      </div>`,
-      )
-      .join("");
-
-    // Gabungkan semua item (log + pengeluaran) lalu sort by waktu terbaru
-    // Karena sudah diurutkan di PHP masing-masing, kita merge di sini
-    const allItems = [
-      ...logs.map((l) => ({
-        time: l.created_at,
-        html: `
-        <div class="log-row" style="flex-wrap:wrap;gap:6px">
-          <div class="log-dot dot-${l.tipe}" style="flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div class="log-info" style="word-break:break-word">
-              <strong>${esc(l.user_nama)}</strong> — ${esc(l.bibit_nama)} di ${esc(l.cabang_nama)}
-              ${l.tipe === "kurang" ? "berkurang" : "bertambah"}
-              <strong>${parseFloat(l.jumlah)} ${esc(l.satuan || "")}</strong>
-              ${l.keterangan ? " (" + esc(l.keterangan) + ")" : ""}
-            </div>
-            <div class="log-meta">Sisa: ${l.sisa} ${esc(l.satuan || "")}</div>
-          </div>
-          <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
-            ${l.created_at.replace(" ", "<br/>")}
-          </div>
-        </div>`,
-      })),
-      ...pengeluaran.map((p) => ({
-        time: p.created_at,
-        html: `
+        ${pengeluaran
+          .map(
+            (p) => `
         <div class="log-row" style="flex-wrap:wrap;gap:6px">
           <div class="log-dot" style="background:var(--red);flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div class="log-info" style="word-break:break-word">
-              <strong>${esc(p.user_nama)}</strong> —
-              Pengeluaran: <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
-              senilai <strong style="color:var(--red)">- Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
+              <strong>${esc(p.user_nama)}</strong> — 
+              <strong>${esc(p.nama_item)}</strong> di ${esc(p.cabang_nama)}
+              senilai <strong style="color:var(--red)">Rp ${parseFloat(p.nominal).toLocaleString("id-ID")}</strong>
               ${p.keterangan ? " (" + esc(p.keterangan) + ")" : ""}
             </div>
-            <div class="log-meta">💸 Pengeluaran</div>
+            <div class="log-meta">Pengeluaran</div>
           </div>
           <div class="log-time" style="font-size:10px;white-space:nowrap;flex-shrink:0">
             ${p.created_at.replace(" ", "<br/>")}
           </div>
         </div>`,
-      })),
-    ].sort((a, b) => new Date(b.time) - new Date(a.time));
-
-    const allRows = allItems.map((i) => i.html).join("");
-    const totalItem = (pag?.total || 0) + pengeluaran.length;
+          )
+          .join("")}
+      </div>`
+        : "";
 
     content.innerHTML = `
       <div class="card">
         <div class="card-header">
           <span class="card-title">Riwayat Aktivitas</span>
-          <span style="font-size:12px;color:var(--text2)">${totalItem} total aktivitas</span>
+          <span style="font-size:12px;color:var(--text2)">${pag?.total || 0} total log</span>
         </div>
-        ${allRows || '<div class="empty">Tidak ada data</div>'}
+        ${rows}
         ${buildPaginationHTML(pag, "loadLogPage")}
-      </div>`;
+      </div>
+      ${kelHTML}`;
   } catch (e) {
     content.innerHTML =
       '<div class="alert alert-danger">Gagal memuat log</div>';
@@ -3721,16 +3720,16 @@ async function loadRiwayatPage(page, tgl) {
       page === 1
         ? `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-        <div class="sum-card">
-          <div class="sum-val" style="color:var(--teal);font-size:15px">Rp ${totalMasuk.toLocaleString("id-ID")}</div>
+        <div class="sum-card" style="border:1.5px solid var(--amber-m)">
+          <div class="sum-val" style="color:var(--blue);font-size:15px">Rp ${totalMasuk.toLocaleString("id-ID")}</div>
           <div class="sum-lbl">Total Masuk</div>
         </div>
-        <div class="sum-card">
+        <div class="sum-card" style="border:1.5px solid #FF85BB">
           <div class="sum-val" style="color:var(--red);font-size:15px">Rp ${totalKeluar.toLocaleString("id-ID")}</div>
           <div class="sum-lbl">Total Keluar</div>
         </div>
         <div class="sum-card" style="border:1.5px solid ${labaBersih >= 0 ? "#9fe1cb" : "#f7c1c1"}">
-          <div class="sum-val" style="color:${labaBersih >= 0 ? "var(--teal)" : "var(--red)"};font-size:15px">
+          <div class="sum-val" style="color:${labaBersih >= 0 ? "var(--green)" : "var(--red)"};font-size:15px">
             Rp ${labaBersih.toLocaleString("id-ID")}
           </div>
           <div class="sum-lbl">${labaBersih >= 0 ? "Laba Bersih" : "Rugi"}</div>
@@ -3849,103 +3848,6 @@ async function loadRiwayatPage(page, tgl) {
 let stokPage = 1;
 let stokKeyword = "";
 let stokSearchTimer = null;
-
-// Override buildStokTab untuk versi paginasi
-function buildStokTab() {
-  const totalMl = stokData.reduce((s, r) => s + parseFloat(r.jumlah), 0);
-  const lowCount = stokData.filter((r) => {
-    const sat = r.satuan_dasar || r.satuan || "ml";
-    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-    return parseFloat(r.jumlah) < (isMl ? STOK_WARNING : 5);
-  }).length;
-
-  const pills =
-    `<button class="pill ${activeFilter === "all" ? "active" : ""}" onclick="setFilter('all')">Semua</button>` +
-    cabangData
-      .map(
-        (c) =>
-          `<button class="pill ${activeFilter == c.id ? "active" : ""}" onclick="setFilter(${c.id})">${esc(c.nama)}</button>`,
-      )
-      .join("");
-
-  let kritisCount = 0,
-    rendahCount = 0;
-  let kritisItems = [],
-    rendahItems = [];
-  stokData.forEach((r) => {
-    if (activeFilter !== "all" && r.cabang_id != activeFilter) return;
-    const v = parseFloat(r.jumlah);
-    const sat = r.satuan_dasar || r.satuan || "ml";
-    const isMl = ["ml", "liter", "gram", "kg"].includes(sat);
-    const warn = isMl ? STOK_WARNING : 5;
-    const crit = isMl ? STOK_CRITICAL : 2;
-    if (v < crit) {
-      kritisCount++;
-      kritisItems.push(
-        `<li><strong>${esc(r.bibit_nama)}</strong> di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
-      );
-    } else if (v < warn) {
-      rendahCount++;
-      rendahItems.push(
-        `<li>${esc(r.bibit_nama)} di ${esc(r.cabang_nama)} — sisa ${parseFloat(v)} ${esc(sat)}</li>`,
-      );
-    }
-  });
-
-  let alertBanner = "";
-  if (kritisCount > 0 || rendahCount > 0) {
-    const kritisDetail = kritisItems.length
-      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7">${kritisItems.join("")}</ul>`
-      : "";
-    const rendahDetail = rendahItems.length
-      ? `<ul style="margin:6px 0 0 16px;padding:0;font-size:12px;line-height:1.7;color:var(--text)">${rendahItems.join("")}</ul>`
-      : "";
-    alertBanner = `
-    <div id="alert-banner" style="border-radius:10px;overflow:hidden;margin-bottom:12px">
-      ${
-        kritisCount > 0
-          ? `
-      <div class="alert alert-danger" style="margin:0 0 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
-           onclick="toggleAlertDetail('detail-kritis',this)">
-        <span>🔴 <strong>${kritisCount} produk stok menipis</strong> — klik lonceng 🔔 untuk detail, atau lihat di sini</span>
-        <svg id="chevron-kritis" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
-      </div>
-      <div id="detail-kritis" style="display:none;background:var(--red-l,#fff0f0);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--red,#e57373);border-top:none;margin-bottom:4px">
-        ${kritisDetail}
-      </div>`
-          : ""
-      }
-      ${
-        rendahCount > 0
-          ? `
-      <div class="alert alert-warn" style="margin:0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
-           onclick="toggleAlertDetail('detail-rendah',this)">
-        <span>🟡 <strong>${rendahCount} produk stok rendah</strong></span>
-        <svg id="chevron-rendah" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
-      </div>
-      <div id="detail-rendah" style="display:none;background:var(--warn-l,#fffbe6);border-radius:0 0 8px 8px;padding:10px 14px;border:1px solid var(--warn,#f5c518);border-top:none">
-        ${rendahDetail}
-      </div>`
-          : ""
-      }
-    </div>`;
-  }
-
-  return `
-    <div class="metrics-grid">
-      <div class="metric-card"><div class="metric-label">Total Stok</div><div class="metric-val">${(totalMl / 1000).toFixed(1)}L</div></div>
-      <div class="metric-card"><div class="metric-label">Jumlah Cabang</div><div class="metric-val">${cabangData.length}</div></div>
-      <div class="metric-card"><div class="metric-label">Jenis Produk</div><div class="metric-val">${bibitData.length}</div></div>
-      <div class="metric-card"><div class="metric-label">Perlu Restock</div><div class="metric-val" style="color:${lowCount > 0 ? "var(--red)" : "var(--teal)"}">${lowCount}</div></div>
-    </div>
-    ${alertBanner}
-    <div class="pills">${pills}</div>
-    <div class="stok-search-bar">
-      <input type="text" id="stok-keyword" placeholder="Cari nama produk..."
-        value="${esc(stokKeyword)}" oninput="debounceStokSearch()"/>
-    </div>
-    <div id="stok-paginated-content"><div class="loading">Memuat stok...</div></div>`;
-}
 
 function debounceStokSearch() {
   clearTimeout(stokSearchTimer);
@@ -4172,3 +4074,27 @@ async function hapusKeluar(id, namaItem) {
     toastErr(e.message);
   }
 }
+/* ================================================
+   DARK MODE TOGGLE
+   ================================================ */
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const newTheme = isDark ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("mw-theme", newTheme);
+  const btn = document.getElementById("btn-theme");
+  if (btn) btn.textContent = newTheme === "dark" ? "☀️" : "🌙";
+}
+
+// Terapkan tema saat halaman dimuat
+(function () {
+  const saved = localStorage.getItem("mw-theme") || "light";
+  if (saved === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+    // Set ikon setelah DOM siap
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("btn-theme");
+      if (btn) btn.textContent = "☀️";
+    });
+  }
+})();

@@ -282,6 +282,29 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
         return ['success' => false, 'message' => $e->getMessage()];
     }
 }
+function getTransaksiByKode(string $kode): ?array {
+    $db   = getDB();
+    $stmt = $db->prepare("
+        SELECT t.*, u.nama AS user_nama,
+               c.nama AS cabang_nama, c.alamat AS cabang_alamat
+        FROM transaksi t
+        JOIN users  u ON t.user_id   = u.id
+        JOIN cabang c ON t.cabang_id = c.id
+        WHERE t.kode_nota = ?
+    ");
+    $stmt->execute([$kode]);
+    $trx = $stmt->fetch();
+    if (!$trx) return null;
+    $stmt2 = $db->prepare("
+        SELECT td.*, b.nama AS bibit_nama, b.satuan, b.satuan_dasar
+        FROM transaksi_detail td
+        JOIN bibit b ON td.bibit_id = b.id
+        WHERE td.transaksi_id = ?
+    ");
+    $stmt2->execute([$trx['id']]);
+    $trx['items'] = $stmt2->fetchAll();
+    return $trx;
+}
 
 // ---- PAGINATION HELPER -----------------------------------
 

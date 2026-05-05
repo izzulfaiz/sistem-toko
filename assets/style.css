@@ -36,7 +36,219 @@ body {
   --text: #1a1a2e;
   --text2: #7c7f9e;
 }
+/* ================================================
+   DARK MODE — Mekar Wangi
+   ================================================ */
+[data-theme="dark"] {
+  --amber: #8b9de8;
+  --amber-l: #1a1b24;
+  --amber-m: #a0aef0;
+  --teal: #f06292;
+  --teal-l: #1e1320;
+  --teal-m: #f48fb1;
+  --red: #f06292;
+  --red-l: #1e1320;
+  --green: #81c784;
+  --green-l: #141e14;
+  --blue: #8b9de8;
+  --border: #2a2b38;
+  --bg: #141418;
+  --bg2: #1c1c22;
+  --text: #e8e8f0;
+  --text2: #8888a8;
+}
 
+[data-theme="dark"] body {
+  background: #0f0f13;
+  color: #e8e8f0;
+}
+
+/* Layout utama */
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .tabs-bar,
+[data-theme="dark"] .filter-bar,
+[data-theme="dark"] .modal-bg {
+  background: #141418;
+}
+
+[data-theme="dark"] .modal {
+  background: #1c1c22;
+}
+
+[data-theme="dark"] .modal-bg {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Cards */
+[data-theme="dark"] .card,
+[data-theme="dark"] .metric-card,
+[data-theme="dark"] .nota-wrap,
+[data-theme="dark"] .sum-card,
+[data-theme="dark"] .trx-card,
+[data-theme="dark"] .k-card,
+[data-theme="dark"] .rekap-card,
+[data-theme="dark"] .rekap-toolbar,
+[data-theme="dark"] .rekap-sum-card,
+[data-theme="dark"] .report-toolbar,
+[data-theme="dark"] .report-preview,
+[data-theme="dark"] .login-box {
+  background: #1c1c22;
+  color: #e8e8f0;
+}
+
+/* Tab buttons */
+[data-theme="dark"] .k-tab-btn {
+  background: #141418;
+  color: #8888a8;
+}
+
+/* Input & Select */
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="file"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: #1c1c22;
+  color: #e8e8f0;
+  border-color: #2a2b38;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #5a5a72;
+}
+
+/* Buttons */
+[data-theme="dark"] .btn {
+  background: #1c1c22;
+  color: #e8e8f0;
+  border-color: #2a2b38;
+}
+[data-theme="dark"] .btn:hover {
+  background: #26262e;
+}
+[data-theme="dark"] .btn-primary {
+  background: var(--amber);
+  color: #fff;
+  border-color: var(--amber);
+}
+[data-theme="dark"] .btn-danger {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+[data-theme="dark"] .btn-green {
+  background: var(--green);
+  color: #fff;
+}
+
+/* Tabel */
+[data-theme="dark"] table th {
+  background: #1c1c22;
+  color: #8888a8;
+}
+[data-theme="dark"] table td {
+  border-color: #2a2b38;
+  color: #e8e8f0;
+}
+[data-theme="dark"] .tbl-wrap {
+  border-color: #2a2b38;
+}
+[data-theme="dark"] tr:hover td {
+  background: #22222a;
+}
+[data-theme="dark"] .rp-table tr:nth-child(even) td {
+  background: #1c1c22;
+}
+
+/* Dropdown & Search */
+[data-theme="dark"] .ss-drop,
+[data-theme="dark"] .sdrop,
+[data-theme="dark"] .search-dropdown,
+[data-theme="dark"] .notif-dropdown,
+[data-theme="dark"] .rekap-toolbar #rekap-cabang-drop {
+  background: #1c1c22;
+  border-color: #2a2b38;
+}
+[data-theme="dark"] .ss-item:hover,
+[data-theme="dark"] .sdrop-item:hover,
+[data-theme="dark"] .search-dropdown-item:hover,
+[data-theme="dark"] .notif-item:hover {
+  background: #26262e;
+}
+
+/* Notifikasi */
+[data-theme="dark"] .notif-item.unread {
+  background: #22222a;
+}
+
+/* Toast */
+[data-theme="dark"] .toast-ok,
+[data-theme="dark"] .toast-danger,
+[data-theme="dark"] .toast-warn,
+[data-theme="dark"] .toast-info {
+  background: #1c1c22;
+  color: #e8e8f0;
+  border-color: #2a2b38;
+}
+[data-theme="dark"] .toast-msg {
+  color: #8888a8;
+}
+
+/* Rekap & laporan */
+[data-theme="dark"] .rp-header {
+  background: linear-gradient(135deg, #1c1c22, #1e1320);
+}
+[data-theme="dark"] .rekap-toolbar #rekap-cabang-label,
+[data-theme="dark"] .rekap-toolbar svg {
+  color: #e8e8f0;
+}
+
+/* Nota */
+[data-theme="dark"] .nota-card {
+  background: #1c1c22;
+  color: #e8e8f0;
+}
+
+/* Bottom nav */
+[data-theme="dark"] .bottom-nav {
+  background: #141418;
+  border-color: #2a2b38;
+}
+
+/* Scrollbar */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #141418;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #2a2b38;
+  border-radius: 4px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #3a3b4e;
+}
+
+/* Transisi halus */
+body,
+.topbar,
+.card,
+.metric-card,
+.btn,
+input,
+select,
+textarea,
+.tabs-bar,
+.k-card,
+.rekap-card,
+.modal,
+.filter-bar {
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
 /* 3. LOGIN */
 .page-login {
   display: flex;

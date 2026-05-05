@@ -31,6 +31,9 @@ $user = currentUser();
     <span class="role-badge role-admin">Admin</span>
   </div>
   <div class="topbar-right">
+    <button onclick="toggleDarkMode()" id="btn-theme"
+  style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:8px;line-height:1"
+  title="Toggle Dark Mode">🌙</button>
     <span class="user-name"><?= htmlspecialchars($user['nama']) ?></span>
 
     <!-- LONCENG NOTIFIKASI -->
@@ -179,10 +182,11 @@ $user = currentUser();
     <div class="form-group">
       <label>Kategori / Jenis</label>
       <select id="mb-kategori" onchange="updateSatuanOptions()">
-        <option value="parfum">Parfum / Bibit (satuan: ml)</option>
-        <option value="laundry">Laundry (satuan: botol / pcs)</option>
-        <option value="aksesoris">Aksesoris / Botol / Dupa (satuan: pcs / lusin)</option>
-        <option value="lainnya">Lainnya (pilih satuan manual)</option>
+        <option value="parfum_baju">Parfum Baju (satuan: ml)</option>
+        <option value="parfum_religi">Parfum Religi (satuan: ml)</option>
+        <option value="parfum_spiritual">Parfum Spiritual (satuan: ml)</option>
+        <option value="parfum_laundry">Parfum Laundry (satuan: botol / pcs)</option>
+        <option value="aksesoris">Aksesoris / Botol (satuan: pcs / lusin)</option>
       </select>
     </div>
 
@@ -223,6 +227,65 @@ $user = currentUser();
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-bibit')">Batal</button>
       <button class="btn btn-primary" onclick="saveBibit()">Tambah Produk</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL EDIT PRODUK -->
+<div class="modal-bg" id="modal-edit-bibit">
+  <div class="modal">
+    <div class="modal-title">Edit Produk</div>
+    <div class="form-group">
+      <label>Nama Produk</label>
+      <input type="text" id="eb-nama" placeholder="Nama produk"/>
+    </div>
+    <div class="form-group">
+      <label>Kategori</label>
+      <select id="eb-kategori">
+        <option value="parfum_baju">Parfum Baju</option>
+        <option value="parfum_religi">Parfum Religi</option>
+        <option value="parfum_spiritual">Parfum Spiritual</option>
+        <option value="parfum_laundry">Parfum Laundry</option>
+        <option value="aksesoris">Aksesoris</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Deskripsi <span style="font-weight:400;color:var(--text2)">(opsional)</span></label>
+      <input type="text" id="eb-deskripsi" placeholder="Deskripsi singkat produk"/>
+    </div>
+    <div class="form-group">
+      <label>Foto Produk <span style="font-weight:400;color:var(--text2)">(opsional, maks 5MB)</span></label>
+      <div id="eb-foto-existing" style="display:none;margin-bottom:8px">
+        <img id="eb-foto-existing-img" src="" alt="foto saat ini"
+          style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:0.5px solid var(--border)"/>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Foto saat ini</div>
+      </div>
+      <input type="file" id="eb-foto" accept="image/jpeg,image/png,image/webp"
+        onchange="previewFotoEditBibit(this)"
+        style="font-size:13px;padding:6px 0"/>
+      <div id="eb-foto-preview" style="display:none;margin-top:8px">
+        <img id="eb-foto-preview-img" src="" alt="preview baru"
+          style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:0.5px solid var(--border)"/>
+        <button type="button" onclick="clearFotoEditBibit()"
+          style="margin-top:4px;font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:0">
+          × Batal ganti foto
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="eb-tampil-landing"
+          style="width:15px;height:15px;accent-color:var(--amber)"/>
+        Tampilkan di Landing Page
+      </label>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">
+        Centang agar produk ini muncul di website landing page
+      </div>
+    </div>
+    <input type="hidden" id="eb-id"/>
+    <div id="eb-err" class="err-msg"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-edit-bibit')">Batal</button>
+      <button class="btn btn-primary" onclick="simpanEditBibit()">Simpan</button>
     </div>
   </div>
 </div>

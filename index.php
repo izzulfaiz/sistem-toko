@@ -51,6 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="stylesheet" href="assets/style.css?v=<?php echo filemtime('assets/style.css'); ?>">
 </head>
 <body class="page-login">
+  <button onclick="toggleDarkMode()" id="btn-theme"
+  style="position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);cursor:pointer;font-size:16px;padding:6px 10px;border-radius:8px;line-height:1;z-index:99;background:var(--bg)"
+  title="Toggle Dark Mode">🌙</button>
 
 <div class="login-wrap">
   <div class="login-box">
@@ -139,6 +142,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+  (function() {
+  const saved = localStorage.getItem('mw-theme') || 'light';
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('btn-theme');
+      if (btn) btn.textContent = '☀️';
+    });
+  }
+})();
+
+  function toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('mw-theme', newTheme);
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+  }
+  
 function togglePassword() {
   const input = document.getElementById('password');
   const icon  = document.getElementById('eye-icon');

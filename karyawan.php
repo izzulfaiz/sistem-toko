@@ -10,6 +10,7 @@ $user = currentUser();
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Karyawan — Mekar Wangi System</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="stylesheet" href="assets/style.css?v=<?php echo filemtime('assets/style.css'); ?>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -103,6 +104,9 @@ $user = currentUser();
       <span class="u-cab"><?= htmlspecialchars($user['cabang_nama']) ?></span>
       <?php endif; ?>
     </div>
+    <button onclick="toggleDarkMode()" id="btn-theme"
+  style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:8px;line-height:1"
+  title="Toggle Dark Mode">🌙</button>
     <a href="logout.php" class="btn btn-sm">Keluar</a>
   </div>
 </div>
@@ -309,8 +313,10 @@ const CURRENT_USER = {
   nama:        <?= json_encode($user['nama']) ?>,
   role:        'karyawan',
   cabang_id:   <?= (int)$user['cabang_id'] ?>,
-  cabang_nama: <?= json_encode($user['cabang_nama']) ?>
+  cabang_nama: <?= json_encode($user['cabang_nama']) ?>,
+  cabang_alamat:<?= json_encode($cabang['alamat'] ?? '') ?>,
 };
+const WA_NUMBER = "6285738894427"; // ← ganti dengan nomor WA admin
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="assets/app.js?v=<?php echo filemtime('assets/app.js'); ?>"></script>
