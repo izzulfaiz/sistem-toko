@@ -248,6 +248,28 @@ $user = currentUser();
         <option value="aksesoris">Aksesoris</option>
       </select>
     </div>
+    <div class="form-row">
+  <div class="form-group">
+    <label>Satuan Jual</label>
+    <select id="eb-satuan" onchange="updateEbSatuanDasar()">
+      <option value="ml"    data-dasar="ml"    data-konversi="1">ml</option>
+      <option value="liter" data-dasar="ml"    data-konversi="1000">liter (1000ml)</option>
+      <option value="gram"  data-dasar="gram"  data-konversi="1">gram</option>
+      <option value="pcs"   data-dasar="pcs"   data-konversi="1">pcs</option>
+      <option value="botol" data-dasar="botol" data-konversi="1">botol</option>
+      <option value="lusin" data-dasar="pcs"   data-konversi="12">lusin (12 pcs)</option>
+      <option value="kodi"  data-dasar="pcs"   data-konversi="20">kodi (20 pcs)</option>
+      <option value="pack"  data-dasar="pack"  data-konversi="1">pack</option>
+      <option value="box"   data-dasar="box"   data-konversi="1">box</option>
+      <option value="kg"    data-dasar="gram"  data-konversi="1000">kg (1000 gram)</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Satuan Dasar (stok)</label>
+    <input type="text" id="eb-satuan-dasar" readonly
+      style="background:var(--bg2);color:var(--text2)"/>
+  </div>
+</div>
     <div class="form-group">
       <label>Deskripsi <span style="font-weight:400;color:var(--text2)">(opsional)</span></label>
       <input type="text" id="eb-deskripsi" placeholder="Deskripsi singkat produk"/>

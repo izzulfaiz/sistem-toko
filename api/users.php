@@ -50,6 +50,15 @@ if ($method === 'POST' && !empty($_POST['action'])) {
             $set_kategori   = ', kategori = ?';
             $params_extra[] = $kategori;
         }
+        // Update satuan kalau dikirim
+$set_satuan = '';
+if (!empty($_POST['satuan'])) {
+    $satuan       = clean($_POST['satuan']);
+    $satuan_dasar = clean($_POST['satuan_dasar'] ?? $satuan);
+    $konversi     = (float)($_POST['konversi'] ?? 1);
+    $set_satuan   = ', satuan = ?, satuan_dasar = ?, konversi = ?';
+    array_push($params_extra, $satuan, $satuan_dasar, $konversi);
+}
 
         $set_foto = '';
         if (!empty($_FILES['foto']['name'])) {
@@ -81,7 +90,7 @@ if ($method === 'POST' && !empty($_POST['action'])) {
         array_push($params, ...$params_extra);
         $params[] = $id;
 
-        $stmt = $db->prepare("UPDATE bibit SET nama=?, deskripsi=?, tampil_landing=? $set_kategori $set_foto WHERE id=?");
+        $stmt = $db->prepare("UPDATE bibit SET nama=?, deskripsi=?, tampil_landing=? $set_kategori $set_satuan $set_foto WHERE id=?");
         $ok   = $stmt->execute($params);
 
         jsonResponse(['success'=>$ok,'message'=>$ok?'Produk diperbarui':'Gagal menyimpan']);

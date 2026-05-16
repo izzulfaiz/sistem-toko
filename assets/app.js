@@ -1107,7 +1107,7 @@ function renderProdukList() {
           <span style="font-size:11px;color:var(--text2);margin-left:5px">[${esc(b.satuan_dasar || b.satuan || "ml")}]</span>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-sm btn-teal" onclick="editInlineBibit(${b.id},'${esc(b.nama)}')">Edit</button>
+          <button class="btn btn-sm btn-teal" data-id="${b.id}" onclick="editInlineBibit(this.dataset.id)">Edit</button>
           <button class="btn btn-sm btn-danger" onclick="deleteProduk('bibit',${b.id})">Hapus</button>
         </div>
       </div>`,
@@ -1499,6 +1499,13 @@ function updateSatuanDasar() {
   }
 }
 
+function updateEbSatuanDasar() {
+  const sel = document.getElementById("eb-satuan");
+  const opt = sel?.selectedOptions[0];
+  const dasar = document.getElementById("eb-satuan-dasar");
+  if (dasar && opt) dasar.value = opt.dataset.dasar || sel.value;
+}
+
 async function saveBibit() {
   const sel = $("mb-satuan");
   const opt = sel?.selectedOptions[0];
@@ -1599,7 +1606,15 @@ function editInlineBibit(id, namaLama) {
 
   const selKat = document.getElementById("eb-kategori");
   if (selKat && produk.kategori) selKat.value = produk.kategori;
-
+  // Set satuan
+  const selSatuan = document.getElementById("eb-satuan");
+  if (selSatuan && produk.satuan) {
+    selSatuan.value = produk.satuan;
+    updateEbSatuanDasar();
+  }
+  const satuanDasar = document.getElementById("eb-satuan-dasar");
+  if (satuanDasar && produk.satuan_dasar)
+    satuanDasar.value = produk.satuan_dasar;
   // Foto existing
   const fotoExisting = document.getElementById("eb-foto-existing");
   const fotoExistingImg = document.getElementById("eb-foto-existing-img");
@@ -1659,6 +1674,11 @@ async function simpanEditBibit() {
     "kategori",
     document.getElementById("eb-kategori")?.value || "parfum_baju",
   );
+  const ebSatuan = document.getElementById("eb-satuan");
+  const ebOpt = ebSatuan?.selectedOptions[0];
+  form.append("satuan", ebSatuan?.value || "ml");
+  form.append("satuan_dasar", ebOpt?.dataset.dasar || ebSatuan?.value || "ml");
+  form.append("konversi", parseFloat(ebOpt?.dataset.konversi || 1));
   form.append(
     "deskripsi",
     document.getElementById("eb-deskripsi")?.value?.trim() || "",

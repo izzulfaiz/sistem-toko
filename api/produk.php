@@ -25,7 +25,7 @@ $action = $_GET['action'] ?? 'produk';
 // =====================================================
 if ($action === 'produk') {
     $kategori = $_GET['kategori'] ?? '';
-    $limit    = min(100, max(1, (int)($_GET['limit'] ?? 8)));
+    $limit    = min(500, max(1, (int)($_GET['limit'] ?? 8)));
     $page     = max(1, (int)($_GET['page'] ?? 1));
     $semua    = ($_GET['semua'] ?? '0') === '1';
     $offset   = ($page - 1) * $limit;
