@@ -1960,6 +1960,7 @@ function tambahItem() {
     harga_satuan: harga,
     subtotal: jumlah * harga,
     satuan_dasar: selectedProduk.satuan_dasar || selectedProduk.satuan || "ml",
+    mix_group: null,
   });
 
   renderNota();
@@ -1981,8 +1982,28 @@ function renderNota() {
   wrap.style.display = "block";
 
   const items = notaItems
-    .map(
-      (item, i) => `
+    .map((item, i) => {
+      const mixLabel = item.mix_group
+        ? `<span style="font-size:10px;background:var(--amber-m);color:#7a4f00;padding:2px 7px;border-radius:99px;font-weight:600">Mix ${item.mix_group}</span>`
+        : "";
+
+      const existing = [
+        ...new Set(
+          notaItems.filter((x) => x.mix_group).map((x) => x.mix_group),
+        ),
+      ].sort((a, b) => a - b);
+      const nextNum = existing.length ? Math.max(...existing) + 1 : 1;
+      let mixOpts = existing
+        .map(
+          (n) =>
+            `<option value="${n}" ${item.mix_group === n ? "selected" : ""}>Mix ${n}</option>`,
+        )
+        .join("");
+      mixOpts += `<option value="${nextNum}">+ Mix Baru (Mix ${nextNum})</option>`;
+      if (item.mix_group)
+        mixOpts += `<option value="0">✕ Lepas dari Mix</option>`;
+
+      return `
     <div class="nota-item">
       <div class="nota-item-info">
         <div class="nota-item-nama">${esc(item.bibit_nama)}</div>
@@ -1992,9 +2013,18 @@ function renderNota() {
         <div class="nota-item-total">Rp ${item.subtotal.toLocaleString("id-ID")}</div>
         <div class="nota-item-unit">@ Rp ${item.harga_satuan.toLocaleString("id-ID")}</div>
       </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px">
+        ${mixLabel}
+        <select onchange="setMixGroup(${i}, this.value)"
+          style="font-size:10px;padding:2px 4px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg2);cursor:pointer;max-width:70px"
+          title="Tandai sebagai mix">
+          <option value="">Mix...</option>
+          ${mixOpts}
+        </select>
+      </div>
       <button class="nota-del" onclick="hapusItem(${i})">×</button>
-    </div>`,
-    )
+    </div>`;
+    })
     .join("");
 
   $("k-nota-items").innerHTML = items;
@@ -2002,6 +2032,16 @@ function renderNota() {
   $("k-total").textContent = "Rp " + total.toLocaleString("id-ID");
   const cnt = $("k-nota-count");
   if (cnt) cnt.textContent = notaItems.length + " item";
+}
+
+function setMixGroup(idx, val) {
+  const num = parseInt(val);
+  if (isNaN(num) || num === 0) {
+    notaItems[idx].mix_group = null;
+  } else {
+    notaItems[idx].mix_group = num;
+  }
+  renderNota();
 }
 
 function batalNota() {
@@ -4059,7 +4099,10 @@ async function loadRiwayatPage(page, tgl) {
           .map(
             (item) =>
               `<div class="trx-row">
-          <span>${esc(item.bibit_nama)} × ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}</span>
+          <span>
+  ${esc(item.bibit_nama)} × ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}
+  ${item.mix_group ? `<span style="font-size:10px;background:var(--amber-m);color:#7a4f00;padding:1px 6px;border-radius:99px;margin-left:4px">Mix ${item.mix_group}</span>` : ""}
+</span>
           <span>Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</span>
         </div>`,
           )

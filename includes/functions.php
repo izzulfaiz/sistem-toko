@@ -105,8 +105,15 @@ function simpanTransaksi(int $user_id, int $cabang_id, array $items, string $cat
             $harga       = (float)$item['harga_satuan'];
             $subtotal    = (float)$item['subtotal'];
 
-            $stmt = $db->prepare("INSERT INTO transaksi_detail (transaksi_id, bibit_id, satuan_jual, jumlah_jual, jumlah_stok, harga_satuan, subtotal) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$transaksi_id, $bibit_id, $satuan_jual, $jumlah_jual, $jumlah_stok, $harga, $subtotal]);
+            // Ganti baris INSERT transaksi_detail yang lama dengan ini:
+$stmt = $db->prepare("INSERT INTO transaksi_detail 
+    (transaksi_id, bibit_id, satuan_jual, jumlah_jual, jumlah_stok, harga_satuan, subtotal, mix_group) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->execute([
+    $transaksi_id, $bibit_id, $satuan_jual, 
+    $jumlah_jual, $jumlah_stok, $harga, $subtotal,
+    isset($item['mix_group']) ? (int)$item['mix_group'] : null
+]);
 
             $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
             $jumlah_baru = $saat_ini - $jumlah_stok;
