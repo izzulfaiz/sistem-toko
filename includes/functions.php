@@ -252,7 +252,7 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
 
         $stmt = $db->prepare("SELECT * FROM transaksi WHERE id = ?");
         $stmt->execute([$transaksi_id]);
-        $trx  = $stmt->fetch();
+        $trx = $stmt->fetch();
 
         if (!$trx) throw new Exception('Transaksi tidak ditemukan');
 
@@ -262,28 +262,158 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
 
         if (str_starts_with($trx['kode_nota'], 'BATAL-')) throw new Exception('Transaksi ini sudah dibatalkan');
 
+        // Ambil detail item
         $stmt2 = $db->prepare("SELECT * FROM transaksi_detail WHERE transaksi_id = ?");
         $stmt2->execute([$transaksi_id]);
         $items = $stmt2->fetchAll();
 
+        // Kembalikan stok
         foreach ($items as $item) {
             $saat_ini    = getStokSaatIni($trx['cabang_id'], $item['bibit_id']);
             $jumlah_baru = $saat_ini + $item['jumlah_stok'];
 
-            $stmt3 = $db->prepare("INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE jumlah = ?");
+            $stmt3 = $db->prepare("
+                INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE jumlah = ?
+            ");
             $stmt3->execute([$trx['cabang_id'], $item['bibit_id'], $jumlah_baru, $jumlah_baru]);
 
-            $stmt4 = $db->prepare("INSERT INTO log_aktivitas (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id) VALUES (?, ?, ?, 'tambah', ?, ?, ?, ?)");
-            $stmt4->execute([$user_id, $trx['cabang_id'], $item['bibit_id'], $item['jumlah_stok'], $jumlah_baru, 'Pembatalan nota #' . $trx['kode_nota'], $transaksi_id]);
+            $stmt4 = $db->prepare("
+                INSERT INTO log_aktivitas
+                    (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id)
+                VALUES (?, ?, ?, 'tambah', ?, ?, ?, ?)
+            ");
+            $stmt4->execute([
+                $user_id, $trx['cabang_id'], $item['bibit_id'],
+                $item['jumlah_stok'], $jumlah_baru,
+                'Pembatalan nota #' . $trx['kode_nota'],
+                $transaksi_id
+            ]);
         }
 
+        // ---- Proses pembatalan stamp & reward (jika transaksi punya member) ----
+        if ($trx['member_id']) {
+            $member_id = (int)$trx['member_id'];
+
+            // Ambil stamp yang terkait transaksi ini
+            $stmtStamp = $db->prepare("
+                SELECT * FROM member_stamps
+                WHERE transaksi_id = ? AND member_id = ?
+            ");
+            $stmtStamp->execute([$transaksi_id, $member_id]);
+            $stamps = $stmtStamp->fetchAll();
+            $jumlah_stamp_dibatalkan = count($stamps);
+
+            if ($jumlah_stamp_dibatalkan > 0) {
+                // Ambil stamp_ke dari stamp yang akan dihapus
+                $stamp_ke_list = array_column($stamps, 'stamp_ke');
+                $stamp_ke_min  = min($stamp_ke_list);
+                $stamp_ke_max  = max($stamp_ke_list);
+
+                // Cek reward yang terbentuk dari stamp ini
+                // Reward terbentuk dari stamp ke-(N*10), cek apakah ada stamp_ke kelipatan 10 di sini
+                $stmtReward = $db->prepare("
+                    SELECT * FROM member_rewards
+                    WHERE member_id = ? AND status = 'pending'
+                    AND stamp_snapshot BETWEEN ? AND ?
+                ");
+                $stmtReward->execute([$member_id, $stamp_ke_min, $stamp_ke_max]);
+                $rewardsToBatal = $stmtReward->fetchAll();
+
+                // Batalkan reward yang pending
+                foreach ($rewardsToBatal as $reward) {
+                    $stmtCancelReward = $db->prepare("
+                        UPDATE member_rewards
+                        SET status = 'cancelled',
+                            catatan = ?
+                        WHERE id = ?
+                    ");
+                    $stmtCancelReward->execute([
+                        'Dibatalkan otomatis karena nota #' . $trx['kode_nota'] . ' dibatalkan',
+                        $reward['id']
+                    ]);
+                }
+
+                // Hapus stamp yang terkait transaksi ini
+                $stmtDelStamp = $db->prepare("
+                    DELETE FROM member_stamps
+                    WHERE transaksi_id = ? AND member_id = ?
+                ");
+                $stmtDelStamp->execute([$transaksi_id, $member_id]);
+
+                // Hitung ulang stamp_ke untuk stamp yang tersisa
+                // (geser ke bawah agar tidak ada gap)
+                $stmtReorder = $db->prepare("
+                    SELECT id FROM member_stamps
+                    WHERE member_id = ?
+                    ORDER BY id ASC
+                ");
+                $stmtReorder->execute([$member_id]);
+                $remainingStamps = $stmtReorder->fetchAll();
+
+                foreach ($remainingStamps as $idx => $s) {
+                    $stmtUpdateKe = $db->prepare("
+                        UPDATE member_stamps SET stamp_ke = ? WHERE id = ?
+                    ");
+                    $stmtUpdateKe->execute([$idx + 1, $s['id']]);
+                }
+
+                // Update total_stamp & stamp_available member
+                $stmtUpdateMember = $db->prepare("
+                    UPDATE members
+                    SET total_stamp     = GREATEST(total_stamp - ?, 0),
+                        stamp_available = GREATEST(stamp_available - ?, 0)
+                    WHERE id = ?
+                ");
+                $stmtUpdateMember->execute([
+                    $jumlah_stamp_dibatalkan,
+                    $jumlah_stamp_dibatalkan,
+                    $member_id
+                ]);
+            }
+        }
+
+        // Update kode nota jadi BATAL-
+        // Jika ini transaksi reward, kembalikan status reward ke pending
+if (str_starts_with($trx['kode_nota'], 'REWARD-')) {
+    // Ambil reward_id dari catatan
+    preg_match('/reward_id #(\d+)/', $trx['catatan'], $matches);
+    $reward_id_batal = isset($matches[1]) ? (int)$matches[1] : null;
+
+    if ($reward_id_batal) {
+        $stmtRB = $db->prepare("
+            UPDATE member_rewards
+            SET status          = 'pending',
+                redeemed_by     = NULL,
+                cabang_redeemed = NULL,
+                redeemed_at     = NULL,
+                catatan         = 'Dibatalkan — reward dikembalikan ke pending'
+            WHERE id = ? AND status = 'redeemed'
+        ");
+        $stmtRB->execute([$reward_id_batal]);
+
+        // Kembalikan stamp_available member
+        if ($trx['member_id']) {
+            $stmtSA = $db->prepare("
+                UPDATE members
+                SET stamp_available = stamp_available + 10
+                WHERE id = ?
+            ");
+            $stmtSA->execute([$trx['member_id']]);
+        }
+    }
+}
         $kode_batal   = 'BATAL-' . $trx['kode_nota'];
         $catatan_baru = 'DIBATALKAN oleh user #' . $user_id . ' pada ' . date('Y-m-d H:i:s');
         $stmt5 = $db->prepare("UPDATE transaksi SET kode_nota = ?, catatan = ? WHERE id = ?");
         $stmt5->execute([$kode_batal, $catatan_baru, $transaksi_id]);
 
         $db->commit();
-        return ['success' => true, 'message' => 'Transaksi berhasil dibatalkan, stok telah dikembalikan'];
+        return [
+            'success' => true,
+            'message' => 'Transaksi berhasil dibatalkan, stok telah dikembalikan' .
+                ($trx['member_id'] ? ', stamp member telah disesuaikan' : '')
+        ];
     } catch (Exception $e) {
         $db->rollBack();
         return ['success' => false, 'message' => $e->getMessage()];
@@ -464,3 +594,361 @@ function getAllStokPaginated(?int $cabang_id = null, int $page = 1, int $per_pag
         'pagination' => buildPagination($total, $page, $per_page),
     ];
 }
+function simpanTransaksiDenganStamp(
+    int $user_id,
+    int $cabang_id,
+    array $items,
+    string $catatan = '',
+    ?int $member_id = null,
+    array $stamp_data = []
+): array {
+    $db = getDB();
+    try {
+        $db->beginTransaction();
+
+        // --- Validasi stok ---
+        foreach ($items as $item) {
+            $bibit_id    = (int)$item['bibit_id'];
+            $jumlah_stok = (float)$item['jumlah_stok'];
+            $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+            if ($jumlah_stok > $saat_ini) {
+                $bibit = getBibitById($bibit_id);
+                throw new Exception("Stok {$bibit['nama']} tidak cukup. Sisa: {$saat_ini} {$bibit['satuan_dasar']}");
+            }
+        }
+
+        // --- Simpan transaksi header ---
+        $total     = array_sum(array_column($items, 'subtotal'));
+        $kode_nota = generateKodeNota($cabang_id);
+
+        $stmt = $db->prepare("
+            INSERT INTO transaksi (kode_nota, user_id, cabang_id, total, catatan, member_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$kode_nota, $user_id, $cabang_id, $total, $catatan, $member_id]);
+        $transaksi_id = (int)$db->lastInsertId();
+
+        // --- Simpan detail item ---
+        foreach ($items as $item) {
+            $bibit_id    = (int)$item['bibit_id'];
+            $satuan_jual = clean($item['satuan_jual']);
+            $jumlah_jual = (float)$item['jumlah_jual'];
+            $jumlah_stok = (float)$item['jumlah_stok'];
+            $harga       = (float)$item['harga_satuan'];
+            $subtotal    = (float)$item['subtotal'];
+            $mix_group   = isset($item['mix_group']) ? (int)$item['mix_group'] : null;
+            $stamp_counted = isset($item['stamp_counted']) && $item['stamp_counted'] ? 1 : 0;
+            $stamp_group   = ($stamp_counted && $mix_group) ? $mix_group : null;
+
+            $stmt2 = $db->prepare("
+                INSERT INTO transaksi_detail
+                    (transaksi_id, bibit_id, satuan_jual, jumlah_jual, jumlah_stok,
+                     harga_satuan, subtotal, mix_group, stamp_counted, stamp_group)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt2->execute([
+                $transaksi_id, $bibit_id, $satuan_jual,
+                $jumlah_jual, $jumlah_stok, $harga, $subtotal,
+                $mix_group, $stamp_counted, $stamp_group,
+            ]);
+
+            // Kurangi stok
+            $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+            $jumlah_baru = $saat_ini - $jumlah_stok;
+
+            $stmt3 = $db->prepare("
+                INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE jumlah = ?
+            ");
+            $stmt3->execute([$cabang_id, $bibit_id, $jumlah_baru, $jumlah_baru]);
+
+            $ket_log = "Penjualan #{$kode_nota}" . ($catatan ? " — {$catatan}" : "");
+            $stmt4   = $db->prepare("
+                INSERT INTO log_aktivitas
+                    (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id)
+                VALUES (?, ?, ?, 'kurang', ?, ?, ?, ?)
+            ");
+            $stmt4->execute([$user_id, $cabang_id, $bibit_id, $jumlah_stok, $jumlah_baru, $ket_log, $transaksi_id]);
+        }
+
+// --- Proses stamp (hanya kalau ada member & ada stamp_data) ---
+$stamp_ditambahkan = 0;
+$reward_baru       = 0;
+
+if ($member_id && !empty($stamp_data)) {
+    // Hitung nominal per stamp dari items
+    // Buat map: bibit_id => subtotal, mix_group => total subtotal
+    $singleNominalMap = [];
+    $mixNominalMap    = [];
+
+    foreach ($items as $item) {
+        if (!isset($item['stamp_counted']) || !$item['stamp_counted']) continue;
+
+        $bibit_id  = (int)$item['bibit_id'];
+        $mix_group = isset($item['mix_group']) ? (int)$item['mix_group'] : null;
+        $subtotal  = (float)$item['subtotal'];
+
+        if ($mix_group) {
+            if (!isset($mixNominalMap[$mix_group])) $mixNominalMap[$mix_group] = 0;
+            $mixNominalMap[$mix_group] += $subtotal;
+        } else {
+            $singleNominalMap[$bibit_id] = $subtotal;
+        }
+    }
+
+    // Ambil stamp_available sebelum update
+    // Ambil total_stamp dan stamp_available sebelum update
+$stmtBefore = $db->prepare("SELECT stamp_available, total_stamp FROM members WHERE id = ?");
+$stmtBefore->execute([$member_id]);
+$memberRow         = $stmtBefore->fetch();
+$stamp_available_before = (int)$memberRow['stamp_available'];
+$total_stamp_before     = (int)$memberRow['total_stamp'];
+
+// Insert stamp satu per satu dengan nominalnya
+$mixGroupSudahInsert = [];
+$stmtLastKe = $db->prepare("
+    SELECT COALESCE(MAX(stamp_ke), 0) FROM member_stamps WHERE member_id = ?
+");
+$stmtLastKe->execute([$member_id]);
+$last_stamp_ke    = (int)$stmtLastKe->fetchColumn();
+$current_stamp_ke = $last_stamp_ke;
+
+foreach ($stamp_data as $sd) {
+    $type      = $sd['type']      ?? 'single';
+    $mix_group = isset($sd['mix_group']) ? (int)$sd['mix_group'] : null;
+    $bibit_id  = isset($sd['bibit_id'])  ? (int)$sd['bibit_id']  : null;
+
+    $current_stamp_ke++;
+
+    if ($type === 'mix') {
+        if (in_array($mix_group, $mixGroupSudahInsert)) {
+            $current_stamp_ke--;
+            continue;
+        }
+        $mixGroupSudahInsert[] = $mix_group;
+        $nominal = (float)($mixNominalMap[$mix_group] ?? 0);
+
+        $stmtS = $db->prepare("
+            INSERT INTO member_stamps
+                (member_id, stamp_ke, transaksi_id, cabang_id, jumlah_stamp, stamp_type, mix_group, nominal)
+            VALUES (?, ?, ?, ?, 1, 'mix', ?, ?)
+        ");
+        $stmtS->execute([$member_id, $current_stamp_ke, $transaksi_id, $cabang_id, $mix_group, $nominal]);
+    } else {
+        $nominal = (float)($singleNominalMap[$bibit_id] ?? 0);
+
+        $stmtS = $db->prepare("
+            INSERT INTO member_stamps
+                (member_id, stamp_ke, transaksi_id, cabang_id, jumlah_stamp, stamp_type, bibit_id, nominal)
+            VALUES (?, ?, ?, ?, 1, 'single', ?, ?)
+        ");
+        $stmtS->execute([$member_id, $current_stamp_ke, $transaksi_id, $cabang_id, $bibit_id, $nominal]);
+    }
+    $stamp_ditambahkan++;
+}
+
+if ($stamp_ditambahkan > 0) {
+    // Update total_stamp & stamp_available
+    $stmtU = $db->prepare("
+        UPDATE members
+        SET total_stamp     = total_stamp + ?,
+            stamp_available = stamp_available + ?
+        WHERE id = ?
+    ");
+    $stmtU->execute([$stamp_ditambahkan, $stamp_ditambahkan, $member_id]);
+
+    // Gunakan total_stamp sebagai basis (tidak pernah berkurang)
+    $total_stamp_after = $total_stamp_before + $stamp_ditambahkan;
+
+    // Hitung reward baru berdasarkan total_stamp (bukan stamp_available)
+    $reward_baru = (int)floor($total_stamp_after / 10) - (int)floor($total_stamp_before / 10);
+
+    for ($r = 0; $r < $reward_baru; $r++) {
+        // Reward ke berapa secara global
+        $reward_ke    = (int)floor($total_stamp_before / 10) + $r + 1;
+        $offset_stamp = ($reward_ke - 1) * 10;
+
+        // Cek apakah reward ke ini sudah pernah dibuat
+        $stmtCekReward = $db->prepare("
+            SELECT COUNT(*) FROM member_rewards
+            WHERE member_id = ? AND stamp_snapshot = ?
+        ");
+        $stmtCekReward->execute([$member_id, $reward_ke * 10]);
+        if ((int)$stmtCekReward->fetchColumn() > 0) continue; // skip kalau sudah ada
+
+        $stmtNominal = $db->prepare("
+            SELECT SUM(nominal) AS total_nominal
+            FROM (
+                SELECT nominal
+                FROM member_stamps
+                WHERE member_id = ?
+                ORDER BY stamp_ke ASC
+                LIMIT 10 OFFSET ?
+            ) AS stamp_batch
+        ");
+        $stmtNominal->execute([$member_id, $offset_stamp]);
+        $nominalData   = $stmtNominal->fetch();
+        $total_nominal = (float)($nominalData['total_nominal'] ?? 0);
+        $rata_nominal  = $total_nominal > 0 ? round($total_nominal / 10) : 0;
+
+        $stmtR = $db->prepare("
+            INSERT INTO member_rewards
+                (member_id, stamp_snapshot, total_nominal, rata_nominal,
+                 reward_type, status, issued_by, cabang_issued)
+            VALUES (?, ?, ?, ?, 'bibit_bebas', 'pending', ?, ?)
+        ");
+        $stmtR->execute([
+            $member_id,
+            $reward_ke * 10,
+            $total_nominal,
+            $rata_nominal,
+            $user_id,
+            $cabang_id,
+        ]);
+    }
+}
+}
+
+$db->commit();
+return [
+    'success'           => true,
+    'transaksi_id'      => $transaksi_id,
+    'kode_nota'         => $kode_nota,
+    'total'             => $total,
+    'stamp_ditambahkan' => $stamp_ditambahkan,
+    'reward_baru'       => $reward_baru,
+];
+} catch (Exception $e) {
+        $db->rollBack();
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+
+function simpanRewardTransaksi(
+    int $user_id,
+    int $cabang_id,
+    int $member_id,
+    int $reward_id,
+    array $items
+): array {
+    $db = getDB();
+    try {
+        $db->beginTransaction();
+
+        // Validasi reward
+        $stmtR = $db->prepare("SELECT * FROM member_rewards WHERE id = ? AND status = 'pending'");
+        $stmtR->execute([$reward_id]);
+        $reward = $stmtR->fetch();
+        if (!$reward) throw new Exception('Reward tidak ditemukan atau sudah ditukar');
+        if ($reward['member_id'] !== $member_id) throw new Exception('Reward tidak sesuai member');
+
+        // Validasi & cek stok tiap item
+        foreach ($items as $item) {
+            $bibit_id    = (int)$item['bibit_id'];
+            $jumlah_stok = (float)$item['jumlah_stok'];
+            $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+            if ($jumlah_stok > $saat_ini) {
+                $bibit = getBibitById($bibit_id);
+                throw new Exception("Stok {$bibit['nama']} tidak cukup. Sisa: {$saat_ini} {$bibit['satuan_dasar']}");
+            }
+        }
+
+        // Generate kode nota reward
+        $kode_nota = 'REWARD-' . date('Ymd') . '-' . $member_id . '-' . $reward_id;
+
+        // Simpan transaksi dengan total 0
+        $stmt = $db->prepare("
+            INSERT INTO transaksi (kode_nota, user_id, cabang_id, total, catatan, member_id)
+            VALUES (?, ?, ?, 0, ?, ?)
+        ");
+        $stmt->execute([
+            $kode_nota,
+            $user_id,
+            $cabang_id,
+            'Reward member — reward_id #' . $reward_id,
+            $member_id
+        ]);
+        $transaksi_id = (int)$db->lastInsertId();
+
+        // Simpan detail item & kurangi stok
+        foreach ($items as $item) {
+            $bibit_id    = (int)$item['bibit_id'];
+            $satuan_jual = clean($item['satuan_jual']);
+            $jumlah_jual = (float)$item['jumlah_jual'];
+            $jumlah_stok = (float)$item['jumlah_stok'];
+            $harga       = 0; // reward = gratis
+            $subtotal    = 0;
+            $mix_group   = null;
+
+            $stmt2 = $db->prepare("
+                INSERT INTO transaksi_detail
+                    (transaksi_id, bibit_id, satuan_jual, jumlah_jual, jumlah_stok,
+                     harga_satuan, subtotal, mix_group, stamp_counted, stamp_group)
+                VALUES (?, ?, ?, ?, ?, 0, 0, NULL, 0, NULL)
+            ");
+            $stmt2->execute([
+                $transaksi_id, $bibit_id, $satuan_jual,
+                $jumlah_jual, $jumlah_stok
+            ]);
+
+            // Kurangi stok
+            $saat_ini    = getStokSaatIni($cabang_id, $bibit_id);
+            $jumlah_baru = $saat_ini - $jumlah_stok;
+
+            $stmt3 = $db->prepare("
+                INSERT INTO stok (cabang_id, bibit_id, jumlah) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE jumlah = ?
+            ");
+            $stmt3->execute([$cabang_id, $bibit_id, $jumlah_baru, $jumlah_baru]);
+
+            $stmt4 = $db->prepare("
+                INSERT INTO log_aktivitas
+                    (user_id, cabang_id, bibit_id, tipe, jumlah, sisa, keterangan, transaksi_id)
+                VALUES (?, ?, ?, 'kurang', ?, ?, ?, ?)
+            ");
+            $stmt4->execute([
+                $user_id, $cabang_id, $bibit_id,
+                $jumlah_stok, $jumlah_baru,
+                'Reward member #' . $member_id . ' — ' . $kode_nota,
+                $transaksi_id
+            ]);
+        }
+
+        // Update reward jadi redeemed
+        $stmtU = $db->prepare("
+            UPDATE member_rewards
+            SET status          = 'redeemed',
+                redeemed_by     = ?,
+                cabang_redeemed = ?,
+                redeemed_at     = NOW(),
+                catatan         = ?
+            WHERE id = ?
+        ");
+        $stmtU->execute([
+            $user_id,
+            $cabang_id,
+            'Transaksi: ' . $kode_nota,
+            $reward_id
+        ]);
+
+        // Kurangi stamp_available member sebesar 10
+        $stmtM = $db->prepare("
+            UPDATE members
+            SET stamp_available = GREATEST(stamp_available - 10, 0)
+            WHERE id = ?
+        ");
+        $stmtM->execute([$member_id]);
+
+        $db->commit();
+        return [
+            'success'      => true,
+            'transaksi_id' => $transaksi_id,
+            'kode_nota'    => $kode_nota,
+            'message'      => 'Reward berhasil diberikan',
+        ];
+    } catch (Exception $e) {
+        $db->rollBack();
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+

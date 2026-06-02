@@ -1774,21 +1774,6 @@ async function loadKaryawanData() {
 /* ================================================
    KARYAWAN — TAB SWITCH
    ================================================ */
-function kTab(name) {
-  ["transaksi", "keluar", "riwayat", "stok", "rekap"].forEach((n) => {
-    const el = $("ktab-" + n);
-    const btn = $("ktab-btn-" + n);
-    if (el) el.style.display = n === name ? "block" : "none";
-    if (btn) btn.classList.toggle("active", n === name);
-  });
-  if (name === "riwayat") loadRiwayat();
-  if (name === "keluar") loadKeluarHariIni();
-  if (name === "stok") loadKaryawanStok();
-  if (name === "rekap") {
-    isiSelectBulanTahun("k-rekap-bulan", "k-rekap-tahun");
-    loadRekapKaryawan();
-  }
-}
 
 /* ================================================
    KARYAWAN — SEARCHABLE DROPDOWN
@@ -1961,6 +1946,7 @@ function tambahItem() {
     subtotal: jumlah * harga,
     satuan_dasar: selectedProduk.satuan_dasar || selectedProduk.satuan || "ml",
     mix_group: null,
+    stamp_counted: false,
   });
 
   renderNota();
@@ -2003,36 +1989,132 @@ function renderNota() {
       if (item.mix_group)
         mixOpts += `<option value="0">✕ Lepas dari Mix</option>`;
 
+      // Tentukan apakah stamp_counted bisa dicentang
+      // Jika item ini mix, semua bibit dalam mix yang sama harus ikut atau tidak
+      const isInMix = !!item.mix_group;
+
+      // Cek apakah mix group ini sudah ada yang dicentang
+      const mixGroupChecked = isInMix
+        ? notaItems.some(
+            (x, xi) =>
+              xi !== i && x.mix_group === item.mix_group && x.stamp_counted,
+          )
+        : false;
+
+      // Jika item mix: stamp_counted dikontrol dari checkbox pertama di grup
+      // Kita tampilkan checkbox hanya di item pertama tiap mix group
+      const isFirstInMixGroup = isInMix
+        ? notaItems.findIndex((x) => x.mix_group === item.mix_group) === i
+        : true;
+
+      let stampControl = "";
+      if (!isInMix) {
+        // Single item: checkbox individual
+        stampControl = `
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0" title="Masukkan ke stamp">
+            <input type="checkbox" ${item.stamp_counted ? "checked" : ""}
+              onchange="toggleStamp(${i}, this.checked)"
+              style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer"/>
+            <span style="font-size:10px;color:var(--text2)">Stamp</span>
+          </label>`;
+      } else if (isFirstInMixGroup) {
+        // Mix: hanya tampilkan 1 checkbox di item pertama grup, kontrol seluruh grup
+        stampControl = `
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0" title="Stamp untuk seluruh Mix ${item.mix_group}">
+            <input type="checkbox" ${item.stamp_counted ? "checked" : ""}
+              onchange="toggleMixStamp(${item.mix_group}, this.checked)"
+              style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer"/>
+            <span style="font-size:10px;color:var(--text2)">Stamp</span>
+          </label>`;
+      } else {
+        // Mix non-pertama: tampilkan indikator saja (ikut grup)
+        stampControl = `
+          <span style="font-size:10px;color:var(--text2);flex-shrink:0;padding:2px 6px;background:var(--bg2);border-radius:6px">
+            ${item.stamp_counted ? "✓ Stamp" : "—"}
+          </span>`;
+      }
+
+      const stampBadge = item.stamp_counted
+        ? `<span style="font-size:9px;background:var(--teal-l);color:var(--teal);padding:1px 5px;border-radius:99px;font-weight:600;flex-shrink:0">+1 🎫</span>`
+        : "";
+
       return `
-    <div class="nota-item">
-      <div class="nota-item-info">
-        <div class="nota-item-nama">${esc(item.bibit_nama)}</div>
-        <div class="nota-item-sub">${item.jumlah_jual} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
-      </div>
-      <div class="nota-item-price">
-        <div class="nota-item-total">Rp ${item.subtotal.toLocaleString("id-ID")}</div>
-        <div class="nota-item-unit">@ Rp ${item.harga_satuan.toLocaleString("id-ID")}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px">
-        ${mixLabel}
-        <select onchange="setMixGroup(${i}, this.value)"
-          style="font-size:10px;padding:2px 4px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg2);cursor:pointer;max-width:70px"
-          title="Tandai sebagai mix">
-          <option value="">Mix...</option>
-          ${mixOpts}
-        </select>
-      </div>
-      <button class="nota-del" onclick="hapusItem(${i})">×</button>
-    </div>`;
+        <div class="nota-item" id="nota-item-${i}">
+          <div class="nota-item-info">
+            <div class="nota-item-nama" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              ${esc(item.bibit_nama)}
+              ${mixLabel}
+              ${stampBadge}
+            </div>
+            <div class="nota-item-sub">${item.jumlah_jual} ${esc(item.satuan_jual)}${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}</div>
+          </div>
+          <div class="nota-item-price">
+            <div class="nota-item-total">Rp ${item.subtotal.toLocaleString("id-ID")}</div>
+            <div class="nota-item-unit">@ Rp ${item.harga_satuan.toLocaleString("id-ID")}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 4px">
+            ${stampControl}
+            <select onchange="setMixGroup(${i}, this.value)"
+              style="font-size:10px;padding:2px 4px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg2);cursor:pointer;max-width:70px"
+              title="Tandai sebagai mix">
+              <option value="">Mix...</option>
+              ${mixOpts}
+            </select>
+          </div>
+          <button class="nota-del" onclick="hapusItem(${i})">×</button>
+        </div>`;
     })
     .join("");
+
+  // Hitung stamp preview
+  const stampCount = hitungStampPreview();
 
   $("k-nota-items").innerHTML = items;
   const total = notaItems.reduce((s, i) => s + i.subtotal, 0);
   $("k-total").textContent = "Rp " + total.toLocaleString("id-ID");
   const cnt = $("k-nota-count");
   if (cnt) cnt.textContent = notaItems.length + " item";
+
+  // Update stamp preview badge
+  renderStampPreview(stampCount);
 }
+
+// Toggle stamp untuk item single
+function toggleStamp(idx, checked) {
+  notaItems[idx].stamp_counted = checked;
+  renderNota();
+}
+
+// Toggle stamp untuk seluruh mix group sekaligus
+function toggleMixStamp(mixGroup, checked) {
+  notaItems.forEach((item) => {
+    if (item.mix_group === mixGroup) {
+      item.stamp_counted = checked;
+    }
+  });
+  renderNota();
+}
+
+// Hitung berapa stamp yang akan didapat dari nota ini
+function hitungStampPreview() {
+  let count = 0;
+  const mixGroupsSudahDihitung = new Set();
+
+  notaItems.forEach((item) => {
+    if (!item.stamp_counted) return;
+    if (item.mix_group) {
+      if (!mixGroupsSudahDihitung.has(item.mix_group)) {
+        mixGroupsSudahDihitung.add(item.mix_group);
+        count++;
+      }
+    } else {
+      count++;
+    }
+  });
+  return count;
+}
+
+// Render info stamp di bawah nota
 
 function setMixGroup(idx, val) {
   const num = parseInt(val);
@@ -2049,35 +2131,6 @@ function batalNota() {
     notaItems = [];
     renderNota();
     clearProduk();
-  }
-}
-
-async function simpanTransaksi() {
-  if (!notaItems.length) {
-    toastWarn("Tambahkan produk ke nota terlebih dahulu");
-    return;
-  }
-  const catatan = $("k-catatan")?.value || "";
-  try {
-    const res = await api(BASE_URL + "/api/transaksi.php", "POST", {
-      items: notaItems,
-      catatan,
-    });
-    if (res.success) {
-      await loadKaryawanData();
-      notaItems = [];
-      renderNota();
-      clearProduk();
-      if ($("k-catatan")) $("k-catatan").value = "";
-      toastOk(
-        `Nota: ${res.kode_nota} — Total: Rp ${parseFloat(res.total).toLocaleString("id-ID")}`,
-        "Transaksi Berhasil!",
-      );
-    } else {
-      toastErr(res.message);
-    }
-  } catch (e) {
-    toastErr(e.message);
   }
 }
 
@@ -4095,6 +4148,7 @@ async function loadRiwayatPage(page, tgl) {
     const trxCards = trxs
       .map((t) => {
         const isBatal = t.kode_nota.startsWith("BATAL-");
+        const isReward = t.kode_nota.startsWith("REWARD-");
         const items = (t.items || [])
           .map(
             (item) =>
@@ -4113,7 +4167,9 @@ async function loadRiwayatPage(page, tgl) {
             : "";
         const statusBadge = isBatal
           ? `<span class="badge" style="background:var(--red-l);color:var(--red)">Dibatalkan</span>`
-          : "";
+          : isReward
+            ? `<span class="badge" style="background:var(--amber-m);color:#7a4f00">🎁 Reward</span>`
+            : "";
 
         return `<div class="trx-card" style="${isBatal ? "opacity:0.6;" : ""}">
         <div class="trx-head">
@@ -4123,9 +4179,9 @@ async function loadRiwayatPage(page, tgl) {
             </div>
             <div class="trx-meta">${t.created_at} · ${esc(t.user_nama)}</div>
           </div>
-          <div class="trx-jumlah" style="${isBatal ? "text-decoration:line-through;color:var(--text2)" : "color:var(--teal)"}">
-            + Rp ${parseFloat(t.total).toLocaleString("id-ID")}
-          </div>
+          <div class="trx-jumlah" style="${isBatal ? "text-decoration:line-through;color:var(--text2)" : isReward ? "color:var(--amber)" : "color:var(--teal)"}">
+  ${isReward ? "🎁 Reward" : "+ Rp " + parseFloat(t.total).toLocaleString("id-ID")}
+</div>
         </div>
         <div class="trx-items">${items}</div>
         ${t.catatan ? `<div style="font-size:11px;color:var(--text2);margin-top:6px">📝 ${esc(t.catatan)}</div>` : ""}
@@ -4466,4 +4522,1016 @@ function toggleDarkMode() {
     });
   }
 })();
+
+/* ================================================
+   SISTEM MEMBER
+   ================================================ */
+
+let selectedMember = null;
+let memberSearchTimer = null;
+
+// ---- Tab switch handler (tambah case 'member') ----
+// Cari fungsi kTab() yang sudah ada, tambahkan:
+// if (name === "member") loadTabMember();
+// Atau ganti seluruh kTab() dengan versi baru:
+
+function kTab(name) {
+  ["transaksi", "keluar", "riwayat", "stok", "rekap", "member"].forEach((n) => {
+    const el = $("ktab-" + n);
+    const btn = $("ktab-btn-" + n);
+    if (el) el.style.display = n === name ? "block" : "none";
+    if (btn) btn.classList.toggle("active", n === name);
+  });
+  if (name === "riwayat") loadRiwayat();
+  if (name === "keluar") loadKeluarHariIni();
+  if (name === "stok") loadKaryawanStok();
+  if (name === "rekap") {
+    isiSelectBulanTahun("k-rekap-bulan", "k-rekap-tahun");
+    loadRekapKaryawan();
+  }
+  if (name === "member") loadTabMember();
+}
+
+// ---- Load tab member ----
+async function loadTabMember() {
+  try {
+    const data = await api(
+      `${BASE_URL}/api/member.php?action=summary&cabang_id=${CURRENT_USER.cabang_id}`,
+    );
+    if ($("m-total-member"))
+      $("m-total-member").textContent = data.total_member ?? "-";
+    if ($("m-total-aktif"))
+      $("m-total-aktif").textContent = data.total_aktif ?? "-";
+    if ($("m-total-reward"))
+      $("m-total-reward").textContent = data.total_reward_pending ?? "-";
+    await loadDaftarMember();
+  } catch (e) {
+    console.error("loadTabMember:", e);
+  }
+}
+
+let memberFilter = "semua"; // 'semua' atau 'cabang'
+
+function setMemberFilter(filter) {
+  memberFilter = filter;
+
+  // Update tampilan tombol
+  const btnSemua = $("m-filter-semua");
+  const btnCabang = $("m-filter-cabang");
+  if (btnSemua && btnCabang) {
+    if (filter === "semua") {
+      btnSemua.className = "btn btn-sm btn-primary";
+      btnCabang.className = "btn btn-sm";
+      btnCabang.style.cssText =
+        "flex:1;font-size:12px;background:var(--bg2);border:0.5px solid var(--border)";
+      btnSemua.style.cssText = "flex:1;font-size:12px";
+    } else {
+      btnCabang.className = "btn btn-sm btn-primary";
+      btnSemua.className = "btn btn-sm";
+      btnSemua.style.cssText =
+        "flex:1;font-size:12px;background:var(--bg2);border:0.5px solid var(--border)";
+      btnCabang.style.cssText = "flex:1;font-size:12px";
+    }
+  }
+
+  memberPage = 1;
+  memberKeyword = "";
+  if ($("m-search")) $("m-search").value = "";
+  loadDaftarMember(1);
+}
+
+// ---- Load daftar member cabang ----
+let memberPage = 1;
+let memberKeyword = "";
+
+async function loadDaftarMember(page = 1) {
+  memberPage = page;
+  const wrap = $("m-list-wrap");
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="loading">Memuat...</div>';
+  try {
+    const url = `${BASE_URL}/api/member.php?action=list&cabang_id=${CURRENT_USER.cabang_id}&filter=${memberFilter}&page=${page}&keyword=${encodeURIComponent(memberKeyword)}`;
+    const data = await api(url);
+    const members = data.members || [];
+
+    if (!members.length) {
+      wrap.innerHTML =
+        '<div class="empty" style="padding:2rem">Belum ada member ditemukan</div>';
+      return;
+    }
+
+    const cards = members
+      .map((m) => {
+        const stampMod = m.stamp_available % 10;
+        const pct = (stampMod / 10) * 100;
+        const rewardPending = parseInt(m.reward_pending || 0);
+        const isLuarCabang = m.cabang_asal_id != CURRENT_USER.cabang_id;
+
+        return `
+        <div class="trx-card" style="cursor:pointer" onclick="openDetailMember(${m.id})">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="width:40px;height:40px;border-radius:50%;background:${isLuarCabang ? "var(--bg2)" : "var(--teal-l)"};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:${isLuarCabang ? "var(--text2)" : "var(--teal)"};flex-shrink:0">
+              ${esc(m.nama.charAt(0).toUpperCase())}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${esc(m.nama)}
+                ${
+                  rewardPending > 0
+                    ? `<span style="font-size:10px;background:var(--amber-m);color:#7a4f00;padding:1px 6px;border-radius:99px;font-weight:700">🎁 ${rewardPending} reward</span>`
+                    : ""
+                }
+                ${
+                  isLuarCabang
+                    ? `<span style="font-size:10px;background:var(--bg2);color:var(--text2);padding:1px 6px;border-radius:99px;border:0.5px solid var(--border)">📍 ${esc(m.cabang_asal_nama)}</span>`
+                    : ""
+                }
+              </div>
+              <div style="font-size:11px;color:var(--text2);margin-top:1px">${esc(m.no_hp)}</div>
+              <div style="margin-top:6px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:2px">
+                  <span>${stampMod}/10 stamp</span>
+                  <span style="color:var(--amber);font-weight:600">${m.total_stamp} total</span>
+                </div>
+                <div style="height:5px;background:var(--bg2);border-radius:99px;overflow:hidden">
+                  <div style="height:100%;background:${rewardPending > 0 ? "var(--amber)" : "var(--teal)"};border-radius:99px;width:${rewardPending > 0 ? 100 : pct}%;transition:width .3s"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    wrap.innerHTML =
+      cards + buildPaginationHTML(data.pagination, "loadDaftarMember");
+  } catch (e) {
+    wrap.innerHTML =
+      '<div class="alert alert-danger">Gagal memuat daftar member</div>';
+  }
+}
+
+function debounceMemberSearch(val) {
+  clearTimeout(memberSearchTimer);
+  memberSearchTimer = setTimeout(() => {
+    memberKeyword = val || "";
+    loadDaftarMember(1);
+  }, 400);
+}
+
+// ---- Open detail member ----
+async function openDetailMember(id) {
+  try {
+    const data = await api(`${BASE_URL}/api/member.php?action=detail&id=${id}`);
+    const m = data.member;
+    if (!m) return;
+
+    $("mdm-nama-title").textContent = m.nama;
+
+    const stampMod = m.stamp_available % 10;
+    const pct = (stampMod / 10) * 100;
+    const rewards = data.rewards || [];
+    const riwayat = data.riwayat || [];
+
+    const rewardRows = rewards.length
+      ? rewards
+          .map((r, idx) => {
+            // ← tambah idx
+            const rataFormatted = parseFloat(
+              r.rata_nominal || 0,
+            ).toLocaleString("id-ID");
+            const totalFormatted = parseFloat(
+              r.total_nominal || 0,
+            ).toLocaleString("id-ID");
+
+            return `
+        <div style="border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div>
+              <div style="font-size:12px;font-weight:600">🎁 Reward ke-${idx + 1}</div>  <!-- ← pakai idx+1 -->
+              <div style="font-size:11px;color:var(--text2)">${r.created_at.substring(0, 10)}</div>
+            </div>
+            ${
+              r.status === "pending"
+                ? `<button class="btn btn-sm btn-primary"
+      onclick="bukaModalReward(${r.id}, ${m.id}, '${parseFloat(r.rata_nominal || 0).toLocaleString("id-ID")}', '${parseFloat(r.total_nominal || 0).toLocaleString("id-ID")}')">
+      Tukar
+    </button>`
+                : `<span class="badge" style="background:var(--teal-l);color:var(--teal)">Ditukar · ${esc(r.bibit_nama || "-")}</span>`
+            }
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--amber)">Rp ${rataFormatted}</div>
+              <div style="font-size:10px;color:var(--text2)">Rata-rata/stamp</div>
+            </div>
+            <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--blue)">Rp ${totalFormatted}</div>
+              <div style="font-size:10px;color:var(--text2)">Total 10 stamp</div>
+            </div>
+          </div>
+        </div>`;
+          })
+          .join("")
+      : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Belum ada reward</div>';
+    const trxRows = riwayat
+      .slice(0, 15)
+      .map((t) => {
+        const itemsPerReward = t.items_per_reward || {};
+        const tglStr = t.created_at.substring(0, 10);
+        const nominalStamp = parseFloat(t.total_stamp_nominal || 0);
+
+        const rewardGroups = Object.keys(itemsPerReward);
+
+        const groupedHTML = rewardGroups
+          .map((groupKey) => {
+            const groupItems = itemsPerReward[groupKey];
+            const isProgress = groupKey === "progress";
+            const groupLabel = isProgress
+              ? '<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>'
+              : "";
+
+            const itemRows = groupItems
+              .map((item) => {
+                if (item.is_mix) {
+                  return `
+          <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
+            <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
+            <div style="display:flex;justify-content:space-between">
+              <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(" + ") : ""}</div>
+              <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
+            </div>
+          </div>`;
+                } else {
+                  return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? "var(--blue)" : "var(--teal)"};margin:3px 0;gap:8px">
+            <div>
+              <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)} <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span></div>
+              <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
+            </div>
+            <div style="font-size:11px;font-weight:600;white-space:nowrap">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
+          </div>`;
+                }
+              })
+              .join("");
+
+            return `
+      <div style="margin-bottom:6px">
+        ${groupLabel}
+        ${itemRows}
+      </div>`;
+          })
+          .join(
+            '<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>',
+          );
+
+        return `
+    <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);gap:8px;cursor:pointer"
+           onclick="toggleRiwayatDetail('rwd-${t.id}', this)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
+          <div style="font-size:10px;color:var(--text2)">${tglStr} · ${esc(t.cabang_nama)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:13px;font-weight:700;color:var(--teal)">Rp ${nominalStamp.toLocaleString("id-ID")}</div>
+          <div style="font-size:10px;color:var(--amber)">+${t.stamp_didapat} 🎫</div>
+        </div>
+        <svg id="chv-${t.id}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             style="flex-shrink:0;transition:transform .2s;color:var(--text2)">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+      <div id="rwd-${t.id}" style="display:none;padding:8px 10px">
+        ${groupedHTML || '<div style="font-size:11px;color:var(--text2)">-</div>'}
+      </div>
+    </div>`;
+      })
+      .join("");
+
+    $("mdm-body").innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:var(--amber)">${m.total_stamp}</div>
+          <div style="font-size:11px;color:var(--text2)">Total Stamp</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px">
+          <div style="font-size:24px;font-weight:700;color:var(--teal)">${m.stamp_available}</div>
+          <div style="font-size:11px;color:var(--text2)">Stamp Tersedia</div>
+        </div>
+      </div>
+
+      <!-- Progress stamp -->
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
+          <span>${stampMod}/10 menuju reward berikutnya</span>
+          <span>${10 - stampMod} lagi</span>
+        </div>
+        <div style="height:8px;background:var(--bg2);border-radius:99px;overflow:hidden">
+          <div style="height:100%;background:var(--amber);border-radius:99px;width:${pct}%"></div>
+        </div>
+      </div>
+
+      <!-- Info member -->
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">
+        📱 ${esc(m.no_hp)} &nbsp;·&nbsp; Cabang asal: ${esc(m.cabang_asal_nama || "-")} &nbsp;·&nbsp; Daftar: ${m.created_at.substring(0, 10)}
+      </div>
+
+      <!-- Reward pending -->
+      ${
+        rewards.some((r) => r.status === "pending")
+          ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Reward Tersedia</div>
+        ${rewardRows}
+      </div>`
+          : ""
+      }
+
+      <!-- Riwayat transaksi -->
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Riwayat Transaksi</div>
+        ${trxRows || '<div style="font-size:12px;color:var(--text2)">Belum ada transaksi</div>'}
+      </div>
+
+      <!-- QR Code member -->
+      <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px">QR Code Member</div>
+        <div id="mdm-qr-wrap" style="display:inline-block;padding:10px;background:#fff;border-radius:8px;border:0.5px solid var(--border)"></div>
+        <div style="font-size:10px;color:var(--text2);margin-top:4px">${esc(m.qr_code)}</div>
+      </div>`;
+
+    // Generate QR code (pakai library qrcode.js via CDN)
+    generateQRCode("mdm-qr-wrap", m.qr_code);
+
+    openModal("modal-detail-member");
+  } catch (e) {
+    toastErr("Gagal memuat detail member");
+  }
+}
+
+// ---- Daftar member baru ----
+function openModalDaftarMember() {
+  $("dm-nama").value = "";
+  $("dm-hp").value = "";
+  $("dm-catatan").value = "";
+  $("dm-err").textContent = "";
+  openModal("modal-daftar-member");
+}
+
+async function simpanDaftarMember() {
+  const nama = $("dm-nama").value.trim();
+  const no_hp = $("dm-hp").value.trim();
+  const catatan = $("dm-catatan").value.trim();
+  const errEl = $("dm-err");
+
+  if (!nama) {
+    errEl.textContent = "Nama wajib diisi";
+    return;
+  }
+  if (!no_hp) {
+    errEl.textContent = "No HP wajib diisi";
+    return;
+  }
+
+  try {
+    const res = await api(`${BASE_URL}/api/member.php`, "POST", {
+      action: "daftar",
+      nama,
+      no_hp,
+      catatan,
+      cabang_id: CURRENT_USER.cabang_id,
+    });
+    if (res.success) {
+      closeModal("modal-daftar-member");
+      toastOk(`Member ${nama} berhasil didaftarkan`, "Member Baru");
+      loadTabMember();
+    } else {
+      errEl.textContent = res.message || "Gagal mendaftarkan member";
+    }
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+// ---- Cari member untuk nota transaksi ----
+let memberSearchDebounce = null;
+
+async function cariMember(val) {
+  clearTimeout(memberSearchDebounce);
+  const drop = $("k-member-dropdown");
+  if (!drop) return;
+  if (!val || val.length < 2) {
+    drop.style.display = "none";
+    return;
+  }
+  memberSearchDebounce = setTimeout(async () => {
+    try {
+      const data = await api(
+        `${BASE_URL}/api/member.php?action=search&q=${encodeURIComponent(val)}`,
+      );
+      const members = data.members || [];
+      if (!members.length) {
+        drop.innerHTML =
+          '<div style="padding:10px 14px;font-size:13px;color:var(--text2)">Member tidak ditemukan</div>';
+      } else {
+        drop.innerHTML = members
+          .map(
+            (m) => `
+          <div onclick="pilihMemberNota(${m.id})"
+            style="padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);transition:background .1s"
+            onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">
+            <div style="font-weight:500">${esc(m.nama)}</div>
+            <div style="font-size:11px;color:var(--text2)">${esc(m.no_hp)} · ${m.total_stamp} stamp · ${m.stamp_available % 10}/10</div>
+          </div>`,
+          )
+          .join("");
+      }
+      drop.style.display = "block";
+    } catch (e) {
+      console.error(e);
+    }
+  }, 350);
+}
+
+async function pilihMemberNota(id) {
+  try {
+    const data = await api(`${BASE_URL}/api/member.php?action=detail&id=${id}`);
+    const m = data.member;
+    if (!m) return;
+
+    selectedMember = m;
+    $("k-member-dropdown").style.display = "none";
+    $("k-member-search-wrap").style.display = "none";
+
+    // Tampilkan info member terpilih
+    $("k-member-terpilih").style.display = "block";
+    $("k-member-nama-display").textContent = m.nama;
+    $("k-member-info-display").textContent =
+      `${m.no_hp} · Cabang asal: ${m.cabang_asal_nama || "-"}`;
+    $("k-member-stamp-display").textContent = m.stamp_available;
+
+    // Progress bar
+    const stampMod = m.stamp_available % 10;
+    const pct = (stampMod / 10) * 100;
+    if ($("k-stamp-progressbar"))
+      $("k-stamp-progressbar").style.width = pct + "%";
+    if ($("k-stamp-progress-label"))
+      $("k-stamp-progress-label").textContent = `${stampMod}/10 menuju reward`;
+    if ($("k-stamp-next-label"))
+      $("k-stamp-next-label").textContent = `${10 - stampMod} lagi`;
+
+    // Update stamp preview
+    const stampCount = hitungStampPreview();
+    renderStampPreview(stampCount);
+  } catch (e) {
+    toastErr("Gagal memuat data member");
+  }
+}
+
+function clearMemberPilih() {
+  selectedMember = null;
+  if ($("k-member-search")) $("k-member-search").value = "";
+  if ($("k-member-dropdown")) $("k-member-dropdown").style.display = "none";
+  if ($("k-member-search-wrap"))
+    $("k-member-search-wrap").style.display = "block";
+  if ($("k-member-terpilih")) $("k-member-terpilih").style.display = "none";
+  renderStampPreview(0);
+}
+
+// Override renderStampPreview supaya hide kalau tidak ada member
+const _renderStampPreviewOri = renderStampPreview;
+function renderStampPreview(count) {
+  let el = $("k-stamp-preview");
+  if (!el) return;
+  if (count === 0 || !selectedMember) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "flex";
+  const stampSekarang = selectedMember.stamp_available % 10;
+  const stampBaru = stampSekarang + count;
+  const akanDapatReward = stampBaru >= 10;
+  el.innerHTML = `
+    <span style="font-size:13px">🎫</span>
+    <span style="font-size:12px;color:var(--teal);font-weight:600">+${count} stamp</span>
+    <span style="font-size:11px;color:var(--text2)">akan ditambahkan</span>
+    ${akanDapatReward ? `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;padding:1px 7px;border-radius:99px;font-weight:600;margin-left:auto">🎁 dapat reward!</span>` : ""}`;
+}
+
+// ---- Override simpanTransaksi untuk kirim member_id & stamp_data ----
+// Ganti fungsi simpanTransaksi() yang lama:
+async function simpanTransaksi() {
+  if (!notaItems.length) {
+    toastWarn("Tambahkan produk ke nota terlebih dahulu");
+    return;
+  }
+  const catatan = $("k-catatan")?.value || "";
+
+  // Hitung stamp_data untuk backend
+  // Hitung stamp_data SESUAI URUTAN item di nota
+  const mixGroupsSudahDihitung = new Set();
+  const stampData = [];
+
+  notaItems.forEach((item) => {
+    if (!item.stamp_counted) return;
+
+    if (item.mix_group) {
+      if (!mixGroupsSudahDihitung.has(item.mix_group)) {
+        mixGroupsSudahDihitung.add(item.mix_group);
+        stampData.push({
+          type: "mix",
+          mix_group: item.mix_group,
+          // Kumpulkan semua bibit dalam mix ini untuk nominal
+          mix_items: notaItems
+            .filter((x) => x.mix_group === item.mix_group)
+            .map((x) => ({ bibit_id: x.bibit_id, subtotal: x.subtotal })),
+        });
+      }
+    } else {
+      stampData.push({
+        type: "single",
+        bibit_id: item.bibit_id,
+        subtotal: item.subtotal,
+      });
+    }
+  });
+
+  try {
+    const res = await api(`${BASE_URL}/api/transaksi.php`, "POST", {
+      items: notaItems,
+      catatan,
+      member_id: selectedMember ? selectedMember.id : null,
+      stamp_data: stampData,
+    });
+    if (res.success) {
+      await loadKaryawanData();
+      notaItems = [];
+      renderNota();
+      clearProduk();
+      clearMemberPilih();
+      if ($("k-catatan")) $("k-catatan").value = "";
+
+      let msg = `Nota: ${res.kode_nota} — Total: Rp ${parseFloat(res.total).toLocaleString("id-ID")}`;
+      if (res.stamp_ditambahkan > 0)
+        msg += ` · +${res.stamp_ditambahkan} stamp`;
+      if (res.reward_baru > 0) msg += ` · 🎁 ${res.reward_baru} reward baru!`;
+      toastOk(msg, "Transaksi Berhasil!");
+    } else {
+      toastErr(res.message);
+    }
+  } catch (e) {
+    toastErr(e.message);
+  }
+}
+
+// ---- Redeem reward ----
+async function openRedeemReward(rewardId, memberId) {
+  // Load daftar bibit untuk dipilih
+  const bibitOpts = bibitData
+    .map(
+      (b) =>
+        `<option value="${b.id}">${esc(b.nama)} [${esc(b.satuan_dasar || b.satuan || "")}]</option>`,
+    )
+    .join("");
+
+  const confirmed = await showRedeemDialog((rewardOpts) => bibitOpts);
+  // Implementasi dialog sederhana pakai prompt dulu, bisa diganti modal later
+  const bibitId = await pilihBibitReward();
+  if (!bibitId) return;
+
+  try {
+    const res = await api(`${BASE_URL}/api/member.php`, "POST", {
+      action: "redeem",
+      reward_id: rewardId,
+      bibit_id: bibitId,
+      cabang_id: CURRENT_USER.cabang_id,
+    });
+    if (res.success) {
+      toastOk("Reward berhasil ditukar!", "Redeem Berhasil");
+      closeModal("modal-detail-member");
+      loadTabMember();
+    } else {
+      toastErr(res.message || "Gagal menukar reward");
+    }
+  } catch (e) {
+    toastErr(e.message);
+  }
+}
+
+async function pilihBibitReward() {
+  return new Promise((resolve) => {
+    // Buat modal redeem inline
+    const existing = document.getElementById("modal-redeem-reward");
+    if (existing) existing.remove();
+
+    const bibitOpts = bibitData
+      .map((b) => `<option value="${b.id}">${esc(b.nama)}</option>`)
+      .join("");
+
+    const modal = document.createElement("div");
+    modal.id = "modal-redeem-reward";
+    modal.className = "modal-bg open";
+    modal.innerHTML = `
+      <div class="modal" style="max-width:380px;width:90%">
+        <div class="modal-header">
+          <span class="modal-title">Pilih Bibit Reward</span>
+          <button class="modal-close" onclick="document.getElementById('modal-redeem-reward').remove()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Pilih bibit yang diinginkan member</label>
+            <select id="redeem-bibit-sel" style="width:100%">${bibitOpts}</select>
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:8px">
+          <button class="btn" style="flex:1" onclick="document.getElementById('modal-redeem-reward').remove();__redeemResolve(null)">Batal</button>
+          <button class="btn btn-primary" style="flex:2" onclick="__redeemResolve(parseInt(document.getElementById('redeem-bibit-sel').value))">Konfirmasi Tukar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    window.__redeemResolve = (val) => {
+      modal.remove();
+      resolve(val);
+    };
+  });
+}
+
+// ---- QR Scanner (pakai html5-qrcode) ----
+let qrScanner = null;
+
+async function startQRScan() {
+  openModal("modal-qr-scanner");
+  // Load library kalau belum ada
+  if (!window.Html5Qrcode) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  try {
+    qrScanner = new Html5Qrcode("qr-reader");
+    await qrScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      async (qrCode) => {
+        await stopQRScan();
+        // Cari member by QR code
+        try {
+          const data = await api(
+            `${BASE_URL}/api/member.php?action=search_qr&qr=${encodeURIComponent(qrCode)}`,
+          );
+          if (data.member) {
+            pilihMemberNota(data.member.id);
+            kTab("transaksi");
+            toastOk(`Member ${data.member.nama} ditemukan`, "QR Scan");
+          } else {
+            toastWarn("QR Code tidak dikenali");
+          }
+        } catch (e) {
+          toastErr("Gagal membaca QR Code");
+        }
+      },
+      () => {},
+    );
+  } catch (e) {
+    $("qr-result").textContent =
+      "Kamera tidak tersedia. Pastikan izin kamera sudah diberikan.";
+  }
+}
+
+async function stopQRScan() {
+  if (qrScanner) {
+    try {
+      await qrScanner.stop();
+    } catch (_) {}
+    qrScanner = null;
+  }
+  closeModal("modal-qr-scanner");
+}
+
+// ---- Generate QR Code (pakai qrcode.js) ----
+async function generateQRCode(elementId, text) {
+  if (!window.QRCode) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.innerHTML = "";
+  new QRCode(el, {
+    text,
+    width: 140,
+    height: 140,
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+}
+
+function toggleRiwayatDetail(detailId, headerEl) {
+  const detail = $(detailId);
+  if (!detail) return;
+  const isOpen = detail.style.display !== "none";
+  detail.style.display = isOpen ? "none" : "block";
+
+  // Rotate chevron
+  const id = detailId.replace("rwd-", "");
+  const chv = $("chv-" + id);
+  if (chv) chv.style.transform = isOpen ? "" : "rotate(180deg)";
+}
+
+/* ================================================
+   REWARD TRANSAKSI
+   ================================================ */
+let rewardItems = [];
+let rewardMemberId = null;
+let rewardId = null;
+let rewardProdukSelected = null;
+
+function bukaModalReward(
+  rewardIdParam,
+  memberIdParam,
+  rataFormatted,
+  totalFormatted,
+) {
+  rewardItems = [];
+  rewardId = rewardIdParam;
+  rewardMemberId = memberIdParam;
+  rewardProdukSelected = null;
+
+  // Isi info reward
+  const infoEl = $("reward-modal-info");
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:15px;font-weight:700;color:var(--amber)">Rp ${rataFormatted}</div>
+          <div style="font-size:10px">Rata-rata/stamp</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:15px;font-weight:700;color:var(--blue)">Rp ${totalFormatted}</div>
+          <div style="font-size:10px">Total 10 stamp</div>
+        </div>
+      </div>`;
+  }
+
+  // Reset form
+  clearRewardProduk();
+  renderRewardNota();
+
+  // Tutup modal detail member dulu, buka modal reward
+  closeModal("modal-detail-member");
+  openModal("modal-tukar-reward");
+}
+
+function tutupModalReward() {
+  closeModal("modal-tukar-reward");
+  rewardItems = [];
+  rewardId = null;
+  rewardMemberId = null;
+  clearRewardProduk();
+}
+
+// ---- Search bibit untuk reward ----
+function filterRewardBibit(val) {
+  const drop = $("reward-bibit-dropdown");
+  if (!drop) return;
+  if (!val || val.length < 1) {
+    drop.classList.add("hide");
+    return;
+  }
+
+  const filtered = allProduk.filter((p) =>
+    p.nama.toLowerCase().includes(val.toLowerCase()),
+  );
+  if (!filtered.length) {
+    drop.innerHTML = '<div class="sdrop-empty">Produk tidak ditemukan</div>';
+    drop.classList.remove("hide");
+    return;
+  }
+
+  drop.innerHTML = filtered
+    .map((p) => {
+      const myStok = stokData.find(
+        (s) => s.bibit_id == p.id && s.cabang_id == CURRENT_USER.cabang_id,
+      );
+      const sisa = myStok ? parseFloat(myStok.jumlah) : 0;
+      const sat = p.satuan_dasar || p.satuan || "ml";
+      return `<div class="sdrop-item" onclick="pilihRewardProduk(${p.id})">
+      ${esc(p.nama)}
+      <div class="sdrop-sub">Stok: ${sisa} ${esc(sat)}</div>
+    </div>`;
+    })
+    .join("");
+  drop.classList.remove("hide");
+}
+
+function pilihRewardProduk(id) {
+  rewardProdukSelected = allProduk.find((p) => p.id == id);
+  if (!rewardProdukSelected) return;
+
+  $("reward-bibit-dropdown")?.classList.add("hide");
+  $("reward-search").value = "";
+  $("reward-selected-wrap").style.display = "block";
+  $("reward-produk-nama").textContent = rewardProdukSelected.nama;
+
+  // Isi satuan
+  const satuanSel = $("reward-satuan");
+  if (satuanSel) {
+    const opts = [];
+    opts.push({
+      v:
+        rewardProdukSelected.satuan_dasar ||
+        rewardProdukSelected.satuan ||
+        "ml",
+      l:
+        rewardProdukSelected.satuan_dasar ||
+        rewardProdukSelected.satuan ||
+        "ml",
+      k: 1,
+    });
+    if (
+      rewardProdukSelected.satuan !== rewardProdukSelected.satuan_dasar &&
+      rewardProdukSelected.konversi > 1
+    ) {
+      opts.unshift({
+        v: rewardProdukSelected.satuan,
+        l: `${rewardProdukSelected.satuan} (=${rewardProdukSelected.konversi} ${rewardProdukSelected.satuan_dasar})`,
+        k: rewardProdukSelected.konversi,
+      });
+    }
+    satuanSel.innerHTML = opts
+      .map(
+        (o) => `<option value="${o.v}" data-konversi="${o.k}">${o.l}</option>`,
+      )
+      .join("");
+  }
+
+  // Stok hint
+  const myStok = stokData.find(
+    (s) => s.bibit_id == id && s.cabang_id == CURRENT_USER.cabang_id,
+  );
+  const sisa = myStok ? parseFloat(myStok.jumlah) : 0;
+  const hint = $("reward-stok-hint");
+  if (hint) {
+    hint.textContent = `Stok tersedia: ${sisa} ${rewardProdukSelected.satuan_dasar || rewardProdukSelected.satuan || "ml"}`;
+    hint.className = "stok-hint" + (sisa <= 5 ? " warn" : "");
+  }
+
+  $("reward-jumlah")?.focus();
+}
+
+function clearRewardProduk() {
+  rewardProdukSelected = null;
+  if ($("reward-search")) $("reward-search").value = "";
+  if ($("reward-selected-wrap"))
+    $("reward-selected-wrap").style.display = "none";
+  if ($("reward-jumlah")) $("reward-jumlah").value = "";
+  if ($("reward-bibit-dropdown"))
+    $("reward-bibit-dropdown").classList.add("hide");
+}
+
+function hitungRewardSubtotal() {
+  // Tidak ada harga, tapi bisa dipakai untuk validasi jumlah
+}
+
+function tambahRewardItem() {
+  if (!rewardProdukSelected) return;
+  const jumlah = parseFloat($("reward-jumlah").value) || 0;
+  const satuanEl = $("reward-satuan");
+  const satuan = satuanEl?.value || rewardProdukSelected.satuan_dasar || "ml";
+  const konversi = parseFloat(
+    satuanEl?.selectedOptions[0]?.dataset.konversi || 1,
+  );
+
+  if (jumlah <= 0) {
+    toastWarn("Jumlah harus lebih dari 0");
+    return;
+  }
+
+  const jumlah_stok = jumlah * konversi;
+  const myStok = stokData.find(
+    (s) =>
+      s.bibit_id == rewardProdukSelected.id &&
+      s.cabang_id == CURRENT_USER.cabang_id,
+  );
+  const sisa = myStok ? parseFloat(myStok.jumlah) : 0;
+
+  const sudahDiReward = rewardItems
+    .filter((i) => i.bibit_id == rewardProdukSelected.id)
+    .reduce((s, i) => s + i.jumlah_stok, 0);
+
+  if (jumlah_stok + sudahDiReward > sisa) {
+    toastErr(
+      `Stok tidak cukup. Tersedia: ${sisa} ${rewardProdukSelected.satuan_dasar || ""}`,
+      "Stok Kurang",
+    );
+    return;
+  }
+
+  rewardItems.push({
+    bibit_id: rewardProdukSelected.id,
+    bibit_nama: rewardProdukSelected.nama,
+    satuan_jual: satuan,
+    jumlah_jual: jumlah,
+    jumlah_stok,
+    satuan_dasar:
+      rewardProdukSelected.satuan_dasar || rewardProdukSelected.satuan || "ml",
+  });
+
+  renderRewardNota();
+  clearRewardProduk();
+}
+
+function hapusRewardItem(idx) {
+  rewardItems.splice(idx, 1);
+  renderRewardNota();
+}
+
+function renderRewardNota() {
+  const wrap = $("reward-nota-wrap");
+  const btnSave = $("btn-berikan-reward");
+  if (!wrap) return;
+
+  if (!rewardItems.length) {
+    wrap.style.display = "none";
+    if (btnSave) btnSave.disabled = true;
+    return;
+  }
+
+  wrap.style.display = "block";
+  if (btnSave) btnSave.disabled = false;
+
+  const cnt = $("reward-item-count");
+  if (cnt) cnt.textContent = rewardItems.length + " item";
+
+  $("reward-nota-items").innerHTML = rewardItems
+    .map(
+      (item, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${esc(item.bibit_nama)}</div>
+        <div style="font-size:11px;color:var(--text2)">
+          ${item.jumlah_jual} ${esc(item.satuan_jual)}
+          ${item.satuan_jual !== item.satuan_dasar ? " → " + item.jumlah_stok + " " + esc(item.satuan_dasar) : ""}
+        </div>
+      </div>
+      <span style="font-size:12px;font-weight:600;color:var(--teal)">Gratis</span>
+      <button onclick="hapusRewardItem(${i})"
+        style="width:26px;height:26px;border-radius:50%;border:none;background:var(--red-l);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>
+    </div>`,
+    )
+    .join("");
+}
+
+async function simpanReward() {
+  if (!rewardItems.length) {
+    toastWarn("Tambahkan item reward dulu");
+    return;
+  }
+  if (!rewardId || !rewardMemberId) {
+    toastErr("Data reward tidak valid");
+    return;
+  }
+
+  try {
+    const res = await api(`${BASE_URL}/api/transaksi.php`, "POST", {
+      action: "reward",
+      items: rewardItems,
+      member_id: rewardMemberId,
+      reward_id: rewardId,
+    });
+
+    if (res.success) {
+      tutupModalReward();
+      await loadKaryawanData();
+      toastOk(
+        `Reward berhasil diberikan — ${res.kode_nota}`,
+        "Reward Diberikan!",
+      );
+      // Refresh tab member
+      loadTabMember();
+    } else {
+      toastErr(res.message);
+    }
+  } catch (e) {
+    toastErr(e.message);
+  }
+}
+
+// Tutup dropdown reward jika klik di luar
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#reward-search-wrap")) {
+    $("reward-bibit-dropdown")?.classList.add("hide");
+  }
+});
 //thank you//

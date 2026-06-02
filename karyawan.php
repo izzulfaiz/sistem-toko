@@ -134,6 +134,10 @@ $user = currentUser();
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
     <span class="k-tab-label">Rekap</span>
   </button>
+  <button class="k-tab-btn" id="ktab-btn-member" onclick="kTab('member')">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+  <span class="k-tab-label">Member</span>
+</button>
 </div>
 
 <div class="k-page">
@@ -185,30 +189,76 @@ $user = currentUser();
     </div>
 
     <!-- NOTA -->
-    <div class="nota-wrap" id="k-nota-wrap" style="display:none">
-      <div class="nota-title">
-        <div>
-          <strong style="font-size:14px">Nota Penjualan</strong>
-          <div id="k-nota-count" style="font-size:12px;color:var(--text2)"></div>
+<div class="nota-wrap" id="k-nota-wrap" style="display:none">
+  <div class="nota-title">
+    <div>
+      <strong style="font-size:14px">Nota Penjualan</strong>
+      <div id="k-nota-count" style="font-size:12px;color:var(--text2)"></div>
+    </div>
+    <span class="live-badge"><span class="pulse"></span>Draft</span>
+  </div>
+
+  <!-- Input member (opsional) -->
+  <div id="k-member-section" style="margin-bottom:12px;padding:10px;background:var(--bg2);border-radius:10px;border:0.5px solid var(--border)">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Member (opsional)</div>
+
+    <!-- State: belum pilih member -->
+    <div id="k-member-search-wrap">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="k-member-search"
+          placeholder="Cari no HP atau nama member..."
+          style="flex:1;font-size:13px"
+          oninput="cariMember(this.value)"
+          autocomplete="off"/>
+        <button class="btn btn-sm" onclick="clearMemberPilih()" style="white-space:nowrap">Tanpa Member</button>
+      </div>
+      <div id="k-member-dropdown" style="display:none;background:var(--bg);border:0.5px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;max-height:160px;overflow-y:auto"></div>
+    </div>
+
+    <!-- State: member terpilih -->
+    <div id="k-member-terpilih" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--teal)" id="k-member-nama-display">-</div>
+          <div style="font-size:11px;color:var(--text2)" id="k-member-info-display">-</div>
         </div>
-        <span class="live-badge"><span class="pulse"></span>Draft</span>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:11px;color:var(--text2)">Stamp saat ini</div>
+          <div style="font-size:18px;font-weight:700;color:var(--amber)" id="k-member-stamp-display">0</div>
+        </div>
+        <button onclick="clearMemberPilih()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text2);padding:0 4px">×</button>
       </div>
-
-      <div id="k-nota-items"></div>
-
-      <div class="nota-total-row">
-        <span class="nota-total-label">Total</span>
-        <span class="nota-total-val" id="k-total">Rp 0</span>
-      </div>
-      <div class="form-group" style="margin-top:8px">
-        <label>Catatan (opsional)</label>
-        <input type="text" id="k-catatan" placeholder="e.g. pelanggan reguler, COD"/>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-danger" style="flex:1" onclick="batalNota()">Batalkan</button>
-        <button class="btn btn-primary" style="flex:2" onclick="simpanTransaksi()">Simpan Transaksi</button>
+      <!-- Stamp progress bar -->
+      <div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:3px">
+          <span id="k-stamp-progress-label">0 / 10 menuju reward</span>
+          <span id="k-stamp-next-label"></span>
+        </div>
+        <div style="height:6px;background:var(--bg2);border-radius:99px;overflow:hidden">
+          <div id="k-stamp-progressbar" style="height:100%;background:var(--amber);border-radius:99px;width:0%;transition:width .3s"></div>
+        </div>
       </div>
     </div>
+  </div>
+
+  <div id="k-nota-items"></div>
+
+  <!-- Stamp preview (muncul kalau ada item yang dicentang + ada member) -->
+  <div id="k-stamp-preview" style="display:none;align-items:center;gap:6px;padding:8px 10px;background:var(--teal-l);border-radius:8px;margin:8px 0;border:0.5px solid #9fe1cb"></div>
+
+  <div class="nota-total-row">
+    <span class="nota-total-label">Total</span>
+    <span class="nota-total-val" id="k-total">Rp 0</span>
+  </div>
+  <div class="form-group" style="margin-top:8px">
+    <label>Catatan (opsional)</label>
+    <input type="text" id="k-catatan" placeholder="e.g. pelanggan reguler, COD"/>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn btn-danger" style="flex:1" onclick="batalNota()">Batalkan</button>
+    <button class="btn btn-primary" style="flex:2" onclick="simpanTransaksi()">Simpan Transaksi</button>
+  </div>
+</div>
 
   </div><!-- end transaksi -->
 
@@ -282,7 +332,62 @@ $user = currentUser();
     </div>
     <div id="k-rekap-content"><div class="empty">Pilih bulan untuk melihat rekap</div></div>
   </div>
+<!-- TAB: MEMBER -->
+<div id="ktab-member" style="display:none">
 
+  <!-- Summary card -->
+  <div class="k-card" style="padding:12px 14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:4px">
+      <div style="text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--blue)" id="m-total-member">-</div>
+        <div style="font-size:11px;color:var(--text2)">Total Member</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--teal)" id="m-total-aktif">-</div>
+        <div style="font-size:11px;color:var(--text2)">Aktif</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--amber)" id="m-total-reward">-</div>
+        <div style="font-size:11px;color:var(--text2)">Reward Pending</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar: search + daftar member baru -->
+  <div class="k-card" style="padding:10px 12px">
+  <!-- Toggle filter -->
+  <div style="display:flex;gap:6px;margin-bottom:10px">
+    <button id="m-filter-semua" onclick="setMemberFilter('semua')"
+      class="btn btn-sm btn-primary"
+      style="flex:1;font-size:12px">
+      🌐 Semua Member
+    </button>
+    <button id="m-filter-cabang" onclick="setMemberFilter('cabang')"
+      class="btn btn-sm"
+      style="flex:1;font-size:12px;background:var(--bg2);border:0.5px solid var(--border)">
+      🏪 Cabang Ini
+    </button>
+  </div>
+
+  <!-- Search + Daftar -->
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <input type="text" id="m-search" placeholder="Cari nama atau no HP..."
+      style="flex:1;font-size:13px" oninput="debounceMemberSearch(this.value)"/>
+    <button class="btn btn-primary btn-sm" onclick="openModalDaftarMember()" style="white-space:nowrap">+ Daftar</button>
+  </div>
+
+  <!-- QR scan button -->
+  <button onclick="startQRScan()"
+    style="width:100%;padding:9px;border:1.5px dashed var(--amber-m);border-radius:8px;background:var(--bg2);cursor:pointer;font-size:13px;color:var(--amber);font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 6.5v3h-3v-3h3M11 5H5v6h6V5zm-1.5 9.5v3h-3v-3h3M11 13H5v6h6v-6zm6.5-6.5v3h-3v-3h3M19 5h-6v6h6V5zm-6 8h1.5v1.5H13V13zm1.5 1.5H16V16h-1.5v-1.5zM16 13h1.5v1.5H16V13zm-3 3h1.5v1.5H13V16zm1.5 1.5H16V19h-1.5v-1.5zM16 16h1.5v1.5H16V16zm1.5-1.5H19V16h-1.5v-1.5zM19 13h1.5v1.5H19V13zm-1.5 4.5H19V19h-1.5v-1.5z"/></svg>
+    Scan QR Code Member
+  </button>
+</div>
+
+  <!-- Daftar member -->
+  <div id="m-list-wrap"><div class="empty" style="padding:2rem">Memuat data member...</div></div>
+
+</div>
   <!-- TAB: STOK -->
   <div id="ktab-stok" style="display:none">
     <div class="k-card">
@@ -307,6 +412,61 @@ $user = currentUser();
 
 </div><!-- end k-page -->
 
+<!-- Modal: Daftar Member Baru -->
+<div class="modal-bg" id="modal-daftar-member">
+  <div class="modal" style="max-width:400px;width:90%">
+    <div class="modal-header">
+      <span class="modal-title">Daftar Member Baru</span>
+      <button class="modal-close" onclick="closeModal('modal-daftar-member')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nama <span style="color:var(--red)">*</span></label>
+        <input type="text" id="dm-nama" placeholder="Nama lengkap customer"/>
+      </div>
+      <div class="form-group">
+        <label>No HP <span style="color:var(--red)">*</span></label>
+        <input type="tel" id="dm-hp" placeholder="08xxxxxxxxxx"/>
+      </div>
+      <div class="form-group">
+        <label>Catatan (opsional)</label>
+        <input type="text" id="dm-catatan" placeholder="e.g. pelanggan tetap"/>
+      </div>
+      <div id="dm-err" style="color:var(--red);font-size:12px;min-height:16px"></div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="closeModal('modal-daftar-member')">Batal</button>
+      <button class="btn btn-primary" style="flex:2" onclick="simpanDaftarMember()">Daftar Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Detail Member -->
+<div class="modal-bg" id="modal-detail-member">
+  <div class="modal" style="max-width:440px;width:90%">
+    <div class="modal-header">
+      <span class="modal-title" id="mdm-nama-title">Detail Member</span>
+      <button class="modal-close" onclick="closeModal('modal-detail-member')">×</button>
+    </div>
+    <div class="modal-body" id="mdm-body">
+      <!-- diisi JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Modal: QR Scanner -->
+<div class="modal-bg" id="modal-qr-scanner">
+  <div class="modal" style="max-width:380px;width:90%">
+    <div class="modal-header">
+      <span class="modal-title">Scan QR Member</span>
+      <button class="modal-close" onclick="stopQRScan()">×</button>
+    </div>
+    <div class="modal-body" style="text-align:center">
+      <div id="qr-reader" style="width:100%;border-radius:10px;overflow:hidden"></div>
+      <div id="qr-result" style="margin-top:10px;font-size:13px;color:var(--text2)">Arahkan kamera ke QR Code member</div>
+    </div>
+  </div>
+</div>
 <script>
 const CURRENT_USER = {
   id:          <?= (int)$user['id'] ?>,
@@ -321,5 +481,70 @@ const WA_NUMBER = "6285738894427"; // ← ganti dengan nomor WA admin
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="assets/app.js?v=<?php echo filemtime('assets/app.js'); ?>"></script>
 <div id="toast-container"></div>
+<!-- Modal: Tukar Reward -->
+<div class="modal-bg" id="modal-tukar-reward">
+  <div class="modal" style="max-width:500px;width:95%">
+    <div class="modal-header">
+      <span class="modal-title">Tukar Reward Member</span>
+      <button class="modal-close" onclick="tutupModalReward()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Info reward -->
+      <div id="reward-modal-info" style="padding:10px 12px;background:var(--bg2);border-radius:8px;margin-bottom:14px;font-size:12px;color:var(--text2)"></div>
+
+      <!-- Search bibit (mirip tab pemasukan) -->
+      <div class="form-group">
+        <label>Tambah Bibit Reward</label>
+        <div style="position:relative" id="reward-search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#888780;pointer-events:none">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="reward-search" placeholder="Ketik nama bibit..."
+            style="padding-left:34px" oninput="filterRewardBibit(this.value)" autocomplete="off"/>
+          <div id="reward-bibit-dropdown" class="sdrop hide"></div>
+        </div>
+      </div>
+
+      <!-- Produk terpilih -->
+      <div id="reward-selected-wrap" style="display:none;margin-bottom:10px">
+        <div id="reward-selected-nama" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--teal-l);border:0.5px solid #9fe1cb;border-radius:8px;font-size:13px;color:var(--teal)">
+          <span id="reward-produk-nama"></span>
+          <button onclick="clearRewardProduk()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--teal)">×</button>
+        </div>
+        <!-- Form jumlah & satuan -->
+        <div class="form-row" style="margin-top:10px">
+          <div class="form-group">
+            <label>Satuan</label>
+            <select id="reward-satuan" onchange="hitungRewardSubtotal()"></select>
+          </div>
+          <div class="form-group">
+            <label>Jumlah</label>
+            <input type="number" id="reward-jumlah" min="0.01" step="0.01"
+              placeholder="0" oninput="hitungRewardSubtotal()"/>
+          </div>
+        </div>
+        <div id="reward-stok-hint" class="stok-hint" style="margin-bottom:10px"></div>
+        <button class="btn btn-primary btn-block" onclick="tambahRewardItem()">+ Tambah ke Reward</button>
+      </div>
+
+      <!-- List item reward (nota) -->
+      <div id="reward-nota-wrap" style="display:none;border:1.5px dashed var(--amber-m);background:#fffcf5;border-radius:10px;padding:12px;margin-top:10px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between">
+          <span>Item Reward</span>
+          <span id="reward-item-count" style="color:var(--text2)"></span>
+        </div>
+        <div id="reward-nota-items"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="tutupModalReward()">Batal</button>
+      <button class="btn btn-primary" style="flex:2" id="btn-berikan-reward"
+        onclick="simpanReward()" disabled>Berikan Reward</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

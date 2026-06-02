@@ -30,11 +30,43 @@ if ($method === 'GET') {
 }
 
 // POST — simpan transaksi baru
+
 if ($method === 'POST') {
-    $body    = json_decode(file_get_contents('php://input'), true);
-    $items   = $body['items']   ?? [];
-    $catatan = clean($body['catatan'] ?? '');
-    $cabang_id = isAdmin()
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $action = $body['action'] ?? '';
+
+    // ---- Jika action reward, proses reward dulu ----
+    if ($action === 'reward') {
+        $items     = $body['items']     ?? [];
+        $member_id = (int)($body['member_id'] ?? 0);
+        $reward_id = (int)($body['reward_id'] ?? 0);
+        $cabang_id = isAdmin()
+            ? (int)($body['cabang_id'] ?? $user['cabang_id'])
+            : (int)$user['cabang_id'];
+
+        if (empty($items))   jsonResponse(['success' => false, 'message' => 'Tidak ada item'], 400);
+        if (!$member_id)     jsonResponse(['success' => false, 'message' => 'Member tidak valid'], 400);
+        if (!$reward_id)     jsonResponse(['success' => false, 'message' => 'Reward tidak valid'], 400);
+
+        foreach ($items as $i => $item) {
+            if (!isset($item['bibit_id'], $item['jumlah_jual'], $item['jumlah_stok'])) {
+                jsonResponse(['success' => false, 'message' => "Item ke-" . ($i+1) . " tidak lengkap"], 400);
+            }
+            if ((float)$item['jumlah_jual'] <= 0) {
+                jsonResponse(['success' => false, 'message' => "Jumlah item ke-" . ($i+1) . " harus lebih dari 0"], 400);
+            }
+        }
+
+        $result = simpanRewardTransaksi($user['id'], $cabang_id, $member_id, $reward_id, $items);
+        jsonResponse($result, $result['success'] ? 200 : 400);
+    }
+
+    // ---- Transaksi biasa (kode lama tidak berubah) ----
+    $items      = $body['items']      ?? [];
+    $catatan    = clean($body['catatan']   ?? '');
+    $member_id  = isset($body['member_id']) ? (int)$body['member_id'] : null;
+    $stamp_data = $body['stamp_data'] ?? [];
+    $cabang_id  = isAdmin()
         ? (int)($body['cabang_id'] ?? $user['cabang_id'])
         : (int)$user['cabang_id'];
 
@@ -42,25 +74,30 @@ if ($method === 'POST') {
         jsonResponse(['success' => false, 'message' => 'Tidak ada item transaksi'], 400);
     }
 
-    // Validasi tiap item
     foreach ($items as $i => $item) {
-        if (
-    !isset($item['bibit_id']) ||
-    !isset($item['jumlah_jual']) ||
-    !isset($item['harga_satuan'])
-) {
-
-            jsonResponse(['success' => false, 'message' => "Item ke-" . ($i+1) . " tidak lengkap"], 400);
+        if (!isset($item['bibit_id'], $item['jumlah_jual'], $item['harga_satuan'])) {
+            jsonResponse(['success' => false, 'message' => "Item ke-" . ($i + 1) . " tidak lengkap"], 400);
         }
         if ((float)$item['jumlah_jual'] <= 0) {
-            jsonResponse(['success' => false, 'message' => "Jumlah item ke-" . ($i+1) . " harus lebih dari 0"], 400);
+            jsonResponse(['success' => false, 'message' => "Jumlah item ke-" . ($i + 1) . " harus lebih dari 0"], 400);
         }
         if ((float)$item['harga_satuan'] < 0) {
             jsonResponse(['success' => false, 'message' => "Harga tidak boleh negatif"], 400);
         }
     }
 
-    $result = simpanTransaksi($user['id'], $cabang_id, $items, $catatan);
+    if ($member_id) {
+        $cekMember = getDB()->prepare("SELECT id, stamp_available FROM members WHERE id = ? AND aktif = 1");
+        $cekMember->execute([$member_id]);
+        $memberData = $cekMember->fetch();
+        if (!$memberData) {
+            jsonResponse(['success' => false, 'message' => 'Member tidak ditemukan atau tidak aktif'], 400);
+        }
+    }
+
+    $result = simpanTransaksiDenganStamp(
+        $user['id'], $cabang_id, $items, $catatan, $member_id, $stamp_data
+    );
     jsonResponse($result, $result['success'] ? 200 : 400);
 }
 
