@@ -183,57 +183,98 @@ $stampItemsMap = [];
 
 if (!empty($trxIds)) {
     $placeholders = implode(',', array_fill(0, count($trxIds), '?'));
-    $stmtItems = $db->prepare("
+
+    // Query 1: ambil semua stamp (single & mix) per transaksi
+    $stmtStamps = $db->prepare("
         SELECT
+            ms.id AS stamp_id,
             ms.transaksi_id,
             ms.stamp_ke,
             ms.stamp_type,
             ms.mix_group,
-            ms.nominal,
-            b.nama AS bibit_nama,
+            ms.bibit_id,
+            ms.nominal
+        FROM member_stamps ms
+        WHERE ms.member_id = ? AND ms.transaksi_id IN ($placeholders)
+        ORDER BY ms.stamp_ke ASC
+    ");
+    $stmtStamps->execute(array_merge([$id], $trxIds));
+    $allStamps = $stmtStamps->fetchAll();
+
+    // Query 2: ambil detail item per transaksi (semua item yang stamp_counted)
+    $stmtDetails = $db->prepare("
+        SELECT
+            td.transaksi_id,
+            td.bibit_id,
+            td.stamp_group,
+            td.stamp_counted,
             td.jumlah_jual,
             td.satuan_jual,
-            td.subtotal
-        FROM member_stamps ms
-        JOIN transaksi_detail td ON td.transaksi_id = ms.transaksi_id
-            AND td.stamp_counted = 1
-            AND (
-                (ms.stamp_type = 'single' AND td.bibit_id = ms.bibit_id)
-                OR
-                (ms.stamp_type = 'mix'    AND td.stamp_group = ms.mix_group)
-            )
+            td.subtotal,
+            b.nama AS bibit_nama
+        FROM transaksi_detail td
         JOIN bibit b ON td.bibit_id = b.id
-        WHERE ms.member_id = ? AND ms.transaksi_id IN ($placeholders)
-        ORDER BY ms.stamp_ke ASC, b.nama ASC
+        WHERE td.transaksi_id IN ($placeholders)
+        AND td.stamp_counted = 1
+        ORDER BY td.id ASC
     ");
-    $stmtItems->execute(array_merge([$id], $trxIds));
-    $allItems = $stmtItems->fetchAll();
+    $stmtDetails->execute($trxIds);
+    $allDetails = $stmtDetails->fetchAll();
 
-    foreach ($allItems as $item) {
-        $tid = $item['transaksi_id'];
+    // Buat map detail per transaksi
+    // single: [transaksi_id][bibit_id] => detail
+    // mix:    [transaksi_id][mix_group] => [detail, ...]
+    $detailSingleMap = [];
+    $detailMixMap    = [];
+    foreach ($allDetails as $d) {
+        $tid = $d['transaksi_id'];
+        if ($d['stamp_group']) {
+            $detailMixMap[$tid][$d['stamp_group']][] = $d;
+        } else {
+            $detailSingleMap[$tid][$d['bibit_id']] = $d;
+        }
+    }
+
+    // Bangun stampItemsMap dari stamp — join ke detail secara manual
+    // Sehingga tidak ada cross-join antar mix group
+    foreach ($allStamps as $stamp) {
+        $tid      = $stamp['transaksi_id'];
+        $stamp_ke = $stamp['stamp_ke'];
+        $type     = $stamp['stamp_type'];
+
         if (!isset($stampItemsMap[$tid])) $stampItemsMap[$tid] = [];
 
-        // Deduplikasi mix group per transaksi
-        $mixKey = $item['stamp_type'] === 'mix' ? 'mix_' . $item['mix_group'] : null;
-        if ($mixKey) {
+        if ($type === 'mix') {
+            $mg     = $stamp['mix_group'];
+            $mixKey = 'mix_' . $mg;
+
             if (!isset($stampItemsMap[$tid][$mixKey])) {
+                $mixDetails = $detailMixMap[$tid][$mg] ?? [];
+                $mixItems   = [];
+                foreach ($mixDetails as $md) {
+                    $mixItems[] = $md['bibit_nama'] . ' ' .
+                                  (float)$md['jumlah_jual'] . ' ' .
+                                  $md['satuan_jual'];
+                }
                 $stampItemsMap[$tid][$mixKey] = [
-                    'stamp_ke'   => $item['stamp_ke'],
-                    'is_mix'     => true,
-                    'items'      => [],
-                    'subtotal'   => $item['nominal'],
+                    'stamp_ke' => $stamp_ke,
+                    'is_mix'   => true,
+                    'items'    => $mixItems,
+                    'subtotal' => (float)$stamp['nominal'],
                 ];
             }
-            $stampItemsMap[$tid][$mixKey]['items'][] = $item['bibit_nama'] . ' ' . (float)$item['jumlah_jual'] . ' ' . $item['satuan_jual'];
         } else {
-            $singleKey = 'single_' . $item['stamp_ke'];
+            $bibit_id   = $stamp['bibit_id'];
+            $singleKey  = 'single_' . $stamp_ke;
+            $detail     = $detailSingleMap[$tid][$bibit_id] ?? null;
+
             $stampItemsMap[$tid][$singleKey] = [
-                'stamp_ke'   => $item['stamp_ke'],
+                'stamp_ke'   => $stamp_ke,
                 'is_mix'     => false,
-                'bibit_nama' => $item['bibit_nama'],
-                'jumlah'     => (float)$item['jumlah_jual'],
-                'satuan'     => $item['satuan_jual'],
-                'subtotal'   => $item['nominal'],
+                'bibit_nama' => $detail['bibit_nama'] ?? '-',
+                'jumlah'     => $detail ? (float)$detail['jumlah_jual'] : 0,
+                'satuan'     => $detail['satuan_jual'] ?? '',
+                'subtotal'   => (float)$stamp['nominal'],
             ];
         }
     }

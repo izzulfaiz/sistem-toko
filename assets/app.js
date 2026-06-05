@@ -315,6 +315,7 @@ function switchTab(name) {
       rekap: "Rekap Bulanan",
       users: "Kelola User",
       produk: "Produk & Distribusi",
+      member: "Member",
     };
     el.classList.toggle("active", el.textContent.trim() === map[name]);
   });
@@ -353,6 +354,7 @@ function renderAdminContent() {
     target.innerHTML = buildProdukTab();
     setTimeout(renderProdukList, 50);
   }
+  if (adminActiveTab === "member") buildMemberAdminTab(target);
 }
 
 /* ================================================
@@ -2119,9 +2121,26 @@ function hitungStampPreview() {
 function setMixGroup(idx, val) {
   const num = parseInt(val);
   if (isNaN(num) || num === 0) {
+    // Lepas dari mix — reset stamp_counted ke false
     notaItems[idx].mix_group = null;
+    notaItems[idx].stamp_counted = false;
   } else {
     notaItems[idx].mix_group = num;
+    // Sync stamp_counted ke semua item dalam mix group yang sama
+    // Ambil status stamp dari item pertama di mix group ini
+    const firstInGroup = notaItems.find(
+      (x, xi) => xi !== idx && x.mix_group === num
+    );
+    if (firstInGroup) {
+      // Ikut status stamp group yang sudah ada
+      notaItems[idx].stamp_counted = firstInGroup.stamp_counted;
+    }
+    // Pastikan semua item di group ini stamp_counted-nya sama
+    notaItems.forEach((item) => {
+      if (item.mix_group === num) {
+        item.stamp_counted = notaItems[idx].stamp_counted;
+      }
+    });
   }
   renderNota();
 }
@@ -4693,10 +4712,11 @@ async function openDetailMember(id) {
     const rewards = data.rewards || [];
     const riwayat = data.riwayat || [];
 
+    // ---- REWARD ROWS (urutan terbaru ke terlama) ----
     const rewardRows = rewards.length
       ? rewards
           .map((r, idx) => {
-            // ← tambah idx
+            const nomorReward = rewards.length - idx;
             const rataFormatted = parseFloat(
               r.rata_nominal || 0,
             ).toLocaleString("id-ID");
@@ -4705,110 +4725,308 @@ async function openDetailMember(id) {
             ).toLocaleString("id-ID");
 
             return `
-        <div style="border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <div>
-              <div style="font-size:12px;font-weight:600">🎁 Reward ke-${idx + 1}</div>  <!-- ← pakai idx+1 -->
-              <div style="font-size:11px;color:var(--text2)">${r.created_at.substring(0, 10)}</div>
-            </div>
-            ${
-              r.status === "pending"
-                ? `<button class="btn btn-sm btn-primary"
-      onclick="bukaModalReward(${r.id}, ${m.id}, '${parseFloat(r.rata_nominal || 0).toLocaleString("id-ID")}', '${parseFloat(r.total_nominal || 0).toLocaleString("id-ID")}')">
-      Tukar
-    </button>`
-                : `<span class="badge" style="background:var(--teal-l);color:var(--teal)">Ditukar · ${esc(r.bibit_nama || "-")}</span>`
-            }
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
-              <div style="font-size:13px;font-weight:700;color:var(--amber)">Rp ${rataFormatted}</div>
-              <div style="font-size:10px;color:var(--text2)">Rata-rata/stamp</div>
-            </div>
-            <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
-              <div style="font-size:13px;font-weight:700;color:var(--blue)">Rp ${totalFormatted}</div>
-              <div style="font-size:10px;color:var(--text2)">Total 10 stamp</div>
-            </div>
-          </div>
-        </div>`;
+            <div style="border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div>
+                  <div style="font-size:12px;font-weight:600">🎁 Reward ke-${nomorReward}</div>
+                  <div style="font-size:11px;color:var(--text2)">${r.created_at.substring(0, 10)}</div>
+                </div>
+                ${
+                  r.status === "pending"
+                    ? `<button class="btn btn-sm btn-primary"
+                      onclick="bukaModalReward(${r.id}, ${m.id}, '${parseFloat(r.rata_nominal || 0).toLocaleString("id-ID")}', '${parseFloat(r.total_nominal || 0).toLocaleString("id-ID")}')">
+                      Tukar
+                    </button>`
+                    : `<span class="badge" style="background:var(--teal-l);color:var(--teal)">Ditukar · ${esc(r.bibit_nama || "-")}</span>`
+                }
+              </div>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
+                  <div style="font-size:13px;font-weight:700;color:var(--amber)">Rp ${rataFormatted}</div>
+                  <div style="font-size:10px;color:var(--text2)">Rata-rata/stamp</div>
+                </div>
+                <div style="flex:1;padding:6px 10px;background:var(--bg2);border-radius:6px;text-align:center">
+                  <div style="font-size:13px;font-weight:700;color:var(--blue)">Rp ${totalFormatted}</div>
+                  <div style="font-size:10px;color:var(--text2)">Total 10 stamp</div>
+                </div>
+              </div>
+            </div>`;
           })
           .join("")
       : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Belum ada reward</div>';
-    const trxRows = riwayat
-      .slice(0, 15)
-      .map((t) => {
-        const itemsPerReward = t.items_per_reward || {};
-        const tglStr = t.created_at.substring(0, 10);
-        const nominalStamp = parseFloat(t.total_stamp_nominal || 0);
 
-        const rewardGroups = Object.keys(itemsPerReward);
+    // ---- RIWAYAT — kelompokkan per siklus ----
+    const siklus = {};
+    riwayat.forEach((t) => {
+      const stampMin = parseInt(t.stamp_ke_min || 0);
+      const stampMax = parseInt(t.stamp_ke_max || 0);
 
-        const groupedHTML = rewardGroups
-          .map((groupKey) => {
-            const groupItems = itemsPerReward[groupKey];
-            const isProgress = groupKey === "progress";
-            const groupLabel = isProgress
-              ? '<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>'
-              : "";
+      if (stampMin === 0 && stampMax === 0) {
+        if (!siklus["0"]) siklus["0"] = { trxs: [] };
+        siklus["0"].trxs.push(t);
+        return;
+      }
+      const siklusMin = Math.ceil(stampMin / 10);
+      const siklusMax = Math.ceil(stampMax / 10);
 
-            const itemRows = groupItems
-              .map((item) => {
-                if (item.is_mix) {
-                  return `
-          <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
-            <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
-            <div style="display:flex;justify-content:space-between">
-              <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(" + ") : ""}</div>
-              <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
-            </div>
-          </div>`;
-                } else {
-                  return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? "var(--blue)" : "var(--teal)"};margin:3px 0;gap:8px">
-            <div>
-              <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)} <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span></div>
-              <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
-            </div>
-            <div style="font-size:11px;font-weight:600;white-space:nowrap">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
-          </div>`;
-                }
+      for (let n = siklusMin; n <= siklusMax; n++) {
+        if (!siklus[n]) {
+          siklus[n] = {
+            nomor: n,
+            stamp_dari: (n - 1) * 10 + 1,
+            stamp_ke: n * 10,
+            trxs: [],
+          };
+        }
+        if (!siklus[n].trxs.find((x) => x.id === t.id)) {
+          siklus[n].trxs.push(t);
+        }
+      }
+    });
+
+    const sortedSiklus = Object.values(siklus)
+      .filter((s) => s.nomor)
+      .sort((a, b) => b.nomor - a.nomor);
+
+    const rewardTrxs =
+      siklus["0"]?.trxs.filter((t) => t.kode_nota.startsWith("REWARD-")) || [];
+
+    const siklusCards = sortedSiklus
+      .map((s) => {
+        const reward = rewards.find(
+          (r) => parseInt(r.stamp_snapshot) === s.stamp_ke,
+        );
+
+        const allStampKe = [];
+        s.trxs.forEach((t) => {
+          const min = parseInt(t.stamp_ke_min || 0);
+          const max = parseInt(t.stamp_ke_max || 0);
+          for (let i = min; i <= max; i++) allStampKe.push(i);
+        });
+        const stampDiSiklus = [...new Set(allStampKe)].filter(
+          (k) => k >= s.stamp_dari && k <= s.stamp_ke,
+        ).length;
+        const isComplete = stampDiSiklus >= 10;
+
+        let headerBg, headerColor, statusLabel;
+        if (reward?.status === "redeemed") {
+          headerBg = "var(--teal-l)";
+          headerColor = "var(--teal)";
+          statusLabel = `<span style="font-size:10px;background:var(--teal-l);color:var(--teal);padding:2px 7px;border-radius:99px;font-weight:600;border:0.5px solid #9fe1cb">✓ Ditukar</span>`;
+        } else if (reward?.status === "pending") {
+          headerBg = "#fffbe6";
+          headerColor = "#7a4f00";
+          statusLabel = `<span style="font-size:10px;background:var(--amber-m);color:#7a4f00;padding:2px 7px;border-radius:99px;font-weight:600">🎁 Reward!</span>`;
+        } else if (isComplete) {
+          headerBg = "var(--blue-l)";
+          headerColor = "var(--blue)";
+          statusLabel = `<span style="font-size:10px;background:var(--blue-l);color:var(--blue);padding:2px 7px;border-radius:99px;font-weight:600">✓ Lengkap</span>`;
+        } else {
+          headerBg = "var(--bg2)";
+          headerColor = "var(--text)";
+          statusLabel = `<span style="font-size:10px;background:var(--bg2);color:var(--text2);padding:2px 7px;border-radius:99px;font-weight:600;border:0.5px solid var(--border)">${stampDiSiklus}/10</span>`;
+        }
+
+        // Mini grid 10 kotak
+        let miniGrid = "";
+        for (let i = 1; i <= 10; i++) {
+          const globalKe = s.stamp_dari + i - 1;
+          const filled = allStampKe.includes(globalKe);
+          miniGrid += `<div style="width:100%;aspect-ratio:1;border-radius:4px;
+          background:${filled ? "var(--amber)" : "var(--bg)"};
+          border:1px solid ${filled ? "var(--amber)" : "var(--border)"};
+          display:flex;align-items:center;justify-content:center;font-size:8px">
+          ${filled ? "🎫" : ""}
+        </div>`;
+        }
+
+        const rewardInfo = reward
+          ? reward.status === "pending"
+            ? `<div style="margin-top:6px;padding:6px 10px;background:var(--amber-m);
+              border-radius:6px;font-size:11px;color:#7a4f00;text-align:center">
+              🎁 Reward menunggu penukaran
+            </div>`
+            : reward.status === "redeemed"
+              ? `<div style="margin-top:6px;padding:6px 10px;background:var(--teal-l);
+              border-radius:6px;font-size:11px;color:var(--teal)">
+              ✓ Ditukar: <strong>${esc(reward.bibit_nama || "-")}</strong>
+            </div>`
+              : ""
+          : "";
+
+        // Transaksi dalam siklus ini
+        const trxRows = s.trxs
+          .map((t) => {
+            const itemsPerReward = t.items_per_reward || {};
+            const tglStr = t.created_at.substring(0, 10);
+            const isReward = t.kode_nota.startsWith("REWARD-");
+            const nominalSiklus = (() => {
+              let total = 0;
+              Object.values(itemsPerReward).forEach((groupItems) => {
+                groupItems.forEach((item) => {
+                  const stampKe = parseInt(item.stamp_ke || 0);
+                  if (stampKe >= s.stamp_dari && stampKe <= s.stamp_ke) {
+                    total += parseFloat(item.subtotal || 0);
+                  }
+                });
+              });
+              return total;
+            })();
+
+            const rewardGroups = Object.keys(itemsPerReward);
+
+            const groupedHTML = rewardGroups
+              .map((groupKey) => {
+                const groupItems = itemsPerReward[groupKey];
+                const isProgress = groupKey === "progress";
+
+                // Filter hanya item yang stamp_ke-nya masuk ke siklus ini
+                const filteredItems = groupItems.filter((item) => {
+                  const stampKe = parseInt(item.stamp_ke || 0);
+                  return stampKe >= s.stamp_dari && stampKe <= s.stamp_ke;
+                });
+
+                // Skip group ini kalau tidak ada item yang masuk siklus
+                if (!filteredItems.length) return "";
+
+                const groupLabel = isProgress
+                  ? '<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>'
+                  : "";
+
+                const itemRows = filteredItems
+                  .map((item) => {
+                    if (item.is_mix) {
+                      return `
+                <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
+                  <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
+                  <div style="display:flex;justify-content:space-between">
+                    <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(" + ") : ""}</div>
+                    <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
+                  </div>
+                </div>`;
+                    } else {
+                      return `
+                <div style="display:flex;justify-content:space-between;align-items:center;
+                  padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? "var(--blue)" : "var(--teal)"};
+                  margin:3px 0;gap:8px">
+                  <div>
+                    <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)}
+                      <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span>
+                    </div>
+                    <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
+                  </div>
+                  <div style="font-size:11px;font-weight:600;white-space:nowrap">
+                    Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}
+                  </div>
+                </div>`;
+                    }
+                  })
+                  .join("");
+
+                return `
+            <div style="margin-bottom:6px">
+      ${groupLabel}
+      ${itemRows}
+    </div>`;
               })
-              .join("");
+              .filter(Boolean)
+              .join(
+                '<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>',
+              );
 
             return `
-      <div style="margin-bottom:6px">
-        ${groupLabel}
-        ${itemRows}
-      </div>`;
+          <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;
+              padding:8px 10px;background:var(--bg2);gap:8px;cursor:pointer"
+              onclick="toggleRiwayatDetail('rwd-${s.nomor}-${t.id}', this)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
+                <div style="font-size:10px;color:var(--text2)">${tglStr} · ${esc(t.cabang_nama)}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:13px;font-weight:700;color:${isReward ? "var(--amber)" : "var(--teal)"}">
+                  ${isReward ? "🎁 Reward" : "Rp " + nominalSiklus.toLocaleString("id-ID")}
+                </div>
+                <div style="font-size:10px;color:var(--amber)">+${t.stamp_didapat} 🎫</div>
+              </div>
+              <svg id="chv-${s.nomor}-${t.id}" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5"
+                style="flex-shrink:0;transition:transform .2s;color:var(--text2)">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </div>
+            <div id="rwd-${s.nomor}-${t.id}" style="display:none;padding:8px 10px">
+              ${groupedHTML || '<div style="font-size:11px;color:var(--text2)">-</div>'}
+            </div>
+          </div>`;
           })
-          .join(
-            '<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>',
-          );
+          .join("");
 
         return `
-    <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);gap:8px;cursor:pointer"
-           onclick="toggleRiwayatDetail('rwd-${t.id}', this)">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
-          <div style="font-size:10px;color:var(--text2)">${tglStr} · ${esc(t.cabang_nama)}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:13px;font-weight:700;color:var(--teal)">Rp ${nominalStamp.toLocaleString("id-ID")}</div>
-          <div style="font-size:10px;color:var(--amber)">+${t.stamp_didapat} 🎫</div>
-        </div>
-        <svg id="chv-${t.id}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-             style="flex-shrink:0;transition:transform .2s;color:var(--text2)">
-          <path d="m6 9 6 6 6-6"/>
-        </svg>
-      </div>
-      <div id="rwd-${t.id}" style="display:none;padding:8px 10px">
-        ${groupedHTML || '<div style="font-size:11px;color:var(--text2)">-</div>'}
-      </div>
-    </div>`;
+        <div style="background:var(--card);border:0.5px solid var(--border);
+          border-radius:12px;margin-bottom:10px;overflow:hidden">
+          <div style="padding:10px 12px;background:${headerBg};
+            border-bottom:0.5px solid var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between;
+              margin-bottom:8px;gap:8px">
+              <div style="font-size:13px;font-weight:700;color:${headerColor}">
+                Siklus ${s.nomor}
+                <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:3px">
+                  (stamp ${s.stamp_dari}–${s.stamp_ke})
+                </span>
+              </div>
+              ${statusLabel}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px">
+              ${miniGrid}
+            </div>
+            ${rewardInfo}
+          </div>
+          <div style="padding:10px 12px">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);
+              text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
+              ${s.trxs.length} Transaksi
+            </div>
+            ${trxRows}
+          </div>
+        </div>`;
       })
       .join("");
 
+    const rewardTrxCard = rewardTrxs.length
+      ? `<div style="background:var(--card);border:0.5px solid var(--border);
+          border-radius:12px;margin-bottom:10px;overflow:hidden">
+          <div style="padding:10px 12px;background:var(--teal-l);
+            border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px">🎁</span>
+            <span style="font-size:12px;font-weight:600;color:var(--teal)">Riwayat Penukaran Reward</span>
+          </div>
+          <div style="padding:10px 12px">
+            ${rewardTrxs
+              .map((t) => {
+                const tgl = new Date(t.created_at).toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                });
+                return `
+                <div style="display:flex;justify-content:space-between;align-items:center;
+                  padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;gap:8px">
+                  <div>
+                    <div style="font-weight:600">${esc(t.kode_nota)}</div>
+                    <div style="font-size:11px;color:var(--text2)">${tgl} · ${esc(t.cabang_nama)}</div>
+                  </div>
+                  <div style="font-weight:700;color:var(--amber)">🎁 Reward</div>
+                </div>`;
+              })
+              .join("")}
+          </div>
+        </div>`
+      : "";
+
+    const riwayatHTML = `${siklusCards}${rewardTrxCard}`;
+
+    // ---- Render ----
     $("mdm-body").innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px">
@@ -4837,22 +5055,20 @@ async function openDetailMember(id) {
         📱 ${esc(m.no_hp)} &nbsp;·&nbsp; Cabang asal: ${esc(m.cabang_asal_nama || "-")} &nbsp;·&nbsp; Daftar: ${m.created_at.substring(0, 10)}
       </div>
 
-      <!-- Reward pending -->
-      ${
-        rewards.some((r) => r.status === "pending")
-          ? `
-      <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Reward Tersedia</div>
-        ${rewardRows}
-      </div>`
-          : ""
-      }
-
-      <!-- Riwayat transaksi -->
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Riwayat Transaksi</div>
-        ${trxRows || '<div style="font-size:12px;color:var(--text2)">Belum ada transaksi</div>'}
+<!-- Reward -->
+${
+  rewards.some((r) => r.status === "pending")
+    ? `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Reward Tersedia</div>
+      ${rewardRows}
+    </div>`
+    : ""
+}
+      <!-- Riwayat transaksi per siklus -->
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+        Riwayat Transaksi
       </div>
+      ${riwayatHTML || '<div style="font-size:12px;color:var(--text2)">Belum ada transaksi</div>'}
 
       <!-- QR Code member -->
       <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
@@ -4861,15 +5077,12 @@ async function openDetailMember(id) {
         <div style="font-size:10px;color:var(--text2);margin-top:4px">${esc(m.qr_code)}</div>
       </div>`;
 
-    // Generate QR code (pakai library qrcode.js via CDN)
     generateQRCode("mdm-qr-wrap", m.qr_code);
-
     openModal("modal-detail-member");
   } catch (e) {
     toastErr("Gagal memuat detail member");
   }
 }
-
 // ---- Daftar member baru ----
 function openModalDaftarMember() {
   $("dm-nama").value = "";
@@ -4999,10 +5212,8 @@ function clearMemberPilih() {
   renderStampPreview(0);
 }
 
-// Override renderStampPreview supaya hide kalau tidak ada member
-const _renderStampPreviewOri = renderStampPreview;
 function renderStampPreview(count) {
-  let el = $("k-stamp-preview");
+  const el = $("k-stamp-preview");
   if (!el) return;
   if (count === 0 || !selectedMember) {
     el.style.display = "none";
@@ -5016,7 +5227,11 @@ function renderStampPreview(count) {
     <span style="font-size:13px">🎫</span>
     <span style="font-size:12px;color:var(--teal);font-weight:600">+${count} stamp</span>
     <span style="font-size:11px;color:var(--text2)">akan ditambahkan</span>
-    ${akanDapatReward ? `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;padding:1px 7px;border-radius:99px;font-weight:600;margin-left:auto">🎁 dapat reward!</span>` : ""}`;
+    ${
+      akanDapatReward
+        ? `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;padding:1px 7px;border-radius:99px;font-weight:600;margin-left:auto">🎁 dapat reward!</span>`
+        : ""
+    }`;
 }
 
 // ---- Override simpanTransaksi untuk kirim member_id & stamp_data ----
@@ -5243,9 +5458,9 @@ function toggleRiwayatDetail(detailId, headerEl) {
   const isOpen = detail.style.display !== "none";
   detail.style.display = isOpen ? "none" : "block";
 
-  // Rotate chevron
-  const id = detailId.replace("rwd-", "");
-  const chv = $("chv-" + id);
+  // Cari chevron dari suffix yang sama: rwd-{siklus}-{id} → chv-{siklus}-{id}
+  const chvId = detailId.replace(/^rwd-/, "chv-");
+  const chv = $(chvId);
   if (chv) chv.style.transform = isOpen ? "" : "rotate(180deg)";
 }
 
@@ -5534,4 +5749,832 @@ document.addEventListener("click", (e) => {
     $("reward-bibit-dropdown")?.classList.add("hide");
   }
 });
+
+/* ================================================
+   TAB MEMBER — ADMIN
+   ================================================ */
+let memberAdminPage = 1;
+let memberAdminKeyword = "";
+let memberAdminCabang = "all";
+const MEMBER_ADMIN_PER_PAGE = 25;
+
+async function buildMemberAdminTab(target) {
+  const cabOpts =
+    `<option value="all">Semua Cabang</option>` +
+    cabangData
+      .map((c) => `<option value="${c.id}">${esc(c.nama)}</option>`)
+      .join("");
+
+  target.innerHTML = `
+    <!-- Statistik -->
+    <div id="member-admin-stats" class="metrics-grid" style="margin-bottom:14px">
+      <div class="loading">Memuat statistik...</div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="card" style="padding:12px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="ma-filter-cabang" onchange="memberAdminCabang=this.value;memberAdminPage=1;loadMemberAdminPage(1)"
+          style="min-width:160px">
+          ${cabOpts}
+        </select>
+        <input type="text" id="ma-search"
+          placeholder="Cari nama atau no HP..."
+          style="flex:1;min-width:160px"
+          oninput="debounceMemberAdminSearch()"/>
+        <button class="btn btn-primary btn-sm" onclick="openTambahMemberAdmin()">
+          + Tambah Member
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabel -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="member-admin-table-wrap">
+        <div class="loading">Memuat data member...</div>
+      </div>
+    </div>`;
+
+  await loadMemberAdminStats();
+  await loadMemberAdminPage(1);
+}
+
+async function loadMemberAdminStats() {
+  const el = document.getElementById("member-admin-stats");
+  if (!el) return;
+  try {
+    const data = await api(`${BASE_URL}/api/member_admin.php?action=stats`);
+    el.innerHTML = `
+      <div class="metric-card">
+        <div class="metric-label">Total Member</div>
+        <div class="metric-val">${data.total_member || 0}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Member Aktif</div>
+        <div class="metric-val" style="color:var(--teal)">${data.total_aktif || 0}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Reward Pending</div>
+        <div class="metric-val" style="color:${(data.total_reward_pending || 0) > 0 ? "var(--amber)" : "var(--teal)"}">
+          ${data.total_reward_pending || 0}
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Stamp Terkumpul</div>
+        <div class="metric-val">${(data.total_stamp_all || 0).toLocaleString("id-ID")}</div>
+      </div>`;
+  } catch (e) {
+    el.innerHTML = "";
+  }
+}
+
+let memberAdminSearchTimer = null;
+function debounceMemberAdminSearch() {
+  clearTimeout(memberAdminSearchTimer);
+  memberAdminSearchTimer = setTimeout(() => {
+    memberAdminKeyword = document.getElementById("ma-search")?.value || "";
+    memberAdminPage = 1;
+    loadMemberAdminPage(1);
+  }, 400);
+}
+
+async function loadMemberAdminPage(page) {
+  memberAdminPage = page;
+  const wrap = document.getElementById("member-admin-table-wrap");
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="loading">Memuat...</div>';
+
+  try {
+    const url =
+      `${BASE_URL}/api/member_admin.php?action=list` +
+      `&page=${page}&per_page=${MEMBER_ADMIN_PER_PAGE}` +
+      `&cabang_id=${memberAdminCabang}` +
+      `&keyword=${encodeURIComponent(memberAdminKeyword)}`;
+    const data = await api(url);
+    const members = data.members || [];
+
+    if (!members.length) {
+      wrap.innerHTML = '<div class="empty">Tidak ada member ditemukan</div>';
+      return;
+    }
+
+    const rows = members
+      .map((m) => {
+        const stampMod = parseInt(m.stamp_available || 0) % 10;
+        const pct = (stampMod / 10) * 100;
+        const rewardPending = parseInt(m.reward_pending || 0);
+
+        return `<tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--teal-l);
+              display:flex;align-items:center;justify-content:center;
+              font-size:14px;font-weight:700;color:var(--teal);flex-shrink:0">
+              ${esc(m.nama.charAt(0).toUpperCase())}
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:500">${esc(m.nama)}</div>
+              <div style="font-size:11px;color:var(--text2)">${esc(m.no_hp)}</div>
+            </div>
+          </div>
+        </td>
+        <td style="color:var(--text2)">${esc(m.cabang_asal_nama || "-")}</td>
+        <td style="text-align:center">
+          <div style="font-size:14px;font-weight:700;color:var(--amber)">${m.total_stamp}</div>
+          <div style="height:4px;background:var(--bg2);border-radius:99px;width:60px;margin:4px auto 0">
+            <div style="height:100%;background:var(--amber);border-radius:99px;width:${pct}%"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${stampMod}/10</div>
+        </td>
+        <td style="text-align:center">
+          ${
+            rewardPending > 0
+              ? `<span class="badge" style="background:var(--amber-m);color:#7a4f00">
+                🎁 ${rewardPending} pending
+               </span>`
+              : `<span style="font-size:12px;color:var(--text2)">—</span>`
+          }
+        </td>
+        <td style="color:var(--text2);font-size:12px">
+          ${new Date(m.created_at).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-teal"
+              onclick="openDetailMemberAdmin(${m.id})">Detail</button>
+            <button class="btn btn-sm"
+              onclick="openEditMemberAdmin(${m.id},'${esc(m.nama)}','${esc(m.no_hp)}')">Edit</button>
+            <button class="btn btn-sm btn-danger"
+              onclick="hapusMemberAdmin(${m.id},'${esc(m.nama)}')">Hapus</button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join("");
+
+    wrap.innerHTML = `
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Cabang Asal</th>
+              <th style="text-align:center">Stamp</th>
+              <th style="text-align:center">Reward</th>
+              <th>Terdaftar</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${buildPaginationHTML(data.pagination, "loadMemberAdminPage")}`;
+  } catch (e) {
+    wrap.innerHTML =
+      '<div class="alert alert-danger">Gagal memuat data member</div>';
+  }
+}
+
+// ---- Detail Member ----
+async function openDetailMemberAdmin(id) {
+  openModal("modal-admin-member-detail");
+  const body = document.getElementById("amd-body");
+  body.innerHTML = '<div class="loading">Memuat...</div>';
+
+  try {
+    const data = await api(
+      `${BASE_URL}/api/member_admin.php?action=detail&id=${id}`,
+    );
+    const m = data.member;
+    const rewards = data.rewards || [];
+    const riwayat = data.riwayat || [];
+
+    document.getElementById("amd-title").textContent = `Detail — ${m.nama}`;
+
+    const stampMod = parseInt(m.stamp_available || 0) % 10;
+    const pct = (stampMod / 10) * 100;
+    const sisaStamp = 10 - stampMod;
+    const rewardPending = rewards.filter((r) => r.status === "pending").length;
+
+    // ---- HERO ----
+    const heroHTML = `
+      <div style="background:linear-gradient(135deg,#3D52A0 0%,#5a6fc0 100%);
+        border-radius:12px;padding:16px;color:#fff;margin-bottom:12px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-15px;top:-15px;width:80px;height:80px;
+          border-radius:50%;background:rgba(255,255,255,0.07)"></div>
+        <div style="font-size:12px;opacity:.8;margin-bottom:2px">Member</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:12px">${esc(m.nama)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700">${m.total_stamp}</div>
+            <div style="font-size:10px;opacity:.75">Total Stamp</div>
+          </div>
+          <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700">${stampMod}/10</div>
+            <div style="font-size:10px;opacity:.75">Progress</div>
+          </div>
+          <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
+            <div style="font-size:20px;font-weight:700;color:${rewardPending > 0 ? "#fde9ba" : "#fff"}">${rewardPending}</div>
+            <div style="font-size:10px;opacity:.75">Reward 🎁</div>
+          </div>
+        </div>
+      </div>`;
+
+    // ---- STAMP PROGRESS ----
+    let stampBoxes = "";
+    for (let i = 1; i <= 10; i++) {
+      const filled = i <= stampMod;
+      stampBoxes += `
+        <div style="aspect-ratio:1;border-radius:8px;
+          border:1.5px solid ${filled ? "var(--amber)" : "var(--border)"};
+          background:${filled ? "var(--amber-m)" : "var(--bg)"};
+          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px">
+          ${
+            filled
+              ? `<span style="font-size:16px">🎫</span>`
+              : `<span style="font-size:14px;opacity:.2">○</span>`
+          }
+          <span style="font-size:9px;opacity:.5">${i}</span>
+        </div>`;
+    }
+
+    const msg =
+      stampMod === 0
+        ? "Kumpulkan 10 stamp untuk dapat reward!"
+        : sisaStamp === 1
+          ? "<strong>1 stamp lagi</strong> untuk dapat reward! 🎉"
+          : `<strong>${sisaStamp} stamp lagi</strong> menuju reward berikutnya`;
+
+    const stampHTML = `
+      <div style="background:var(--card);border:0.5px solid var(--border);
+        border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:600">Progress Stamp</span>
+          <span style="font-size:13px;font-weight:700;color:var(--amber)">${stampMod}/10</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:10px">
+          ${stampBoxes}
+        </div>
+        <div style="font-size:12px;color:var(--text2);text-align:center;
+          padding:7px;background:var(--bg2);border-radius:7px">${msg}</div>
+      </div>`;
+
+    // ---- INFO MEMBER ----
+    const infoHTML = `
+      <div style="background:var(--card);border:0.5px solid var(--border);
+        border-radius:12px;overflow:hidden;margin-bottom:12px">
+        <div style="padding:10px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;color:var(--text2);
+            text-transform:uppercase;letter-spacing:.4px">Info Akun</span>
+        </div>
+        ${[
+          ["Nama", m.nama],
+          ["No HP", m.no_hp],
+          ["Cabang Asal", m.cabang_asal_nama || "-"],
+          [
+            "Terdaftar",
+            new Date(m.created_at).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }),
+          ],
+          ["Status", m.aktif ? "✅ Aktif" : "❌ Nonaktif"],
+        ]
+          .map(
+            ([label, val], i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;
+            padding:9px 14px;${i > 0 ? "border-top:0.5px solid var(--border)" : ""};
+            font-size:13px;gap:10px">
+            <span style="color:var(--text2);flex-shrink:0">${label}</span>
+            <span style="font-weight:500;text-align:right">${esc(String(val))}</span>
+          </div>`,
+          )
+          .join("")}
+      </div>`;
+
+    // ---- REWARD ----
+    const rewardHTML = (() => {
+      if (!rewards.length)
+        return `
+        <div style="background:var(--card);border:0.5px solid var(--border);
+          border-radius:12px;padding:14px;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);
+            text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Reward</div>
+          <div style="font-size:12px;color:var(--text2);text-align:center;padding:12px 0">
+            Belum ada reward
+          </div>
+        </div>`;
+
+      const items = rewards
+        .map((r, idx) => {
+          const nomorReward = rewards.length - idx;
+          const statusBadge =
+            r.status === "pending"
+              ? `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;
+              padding:2px 8px;border-radius:99px;font-weight:600">🎁 Pending</span>`
+              : r.status === "redeemed"
+                ? `<span style="font-size:11px;background:var(--teal-l);color:var(--teal);
+              padding:2px 8px;border-radius:99px;font-weight:600">✓ Ditukar</span>`
+                : `<span style="font-size:11px;background:var(--bg2);color:var(--text2);
+              padding:2px 8px;border-radius:99px;font-weight:600">Dibatalkan</span>`;
+
+          const tgl = new Date(r.created_at).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+
+          return `
+          <div style="border:0.5px solid var(--border);border-radius:10px;
+            padding:12px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;
+              margin-bottom:8px;gap:8px">
+              <div>
+                <div style="font-size:13px;font-weight:600">Reward ke-${nomorReward}</div>
+                <div style="font-size:11px;color:var(--text2)">${tgl}</div>
+              </div>
+              ${statusBadge}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="text-align:center;padding:8px;background:var(--bg2);border-radius:8px">
+                <div style="font-size:13px;font-weight:700;color:var(--blue)">
+                  Rp ${parseFloat(r.rata_nominal || 0).toLocaleString("id-ID")}
+                </div>
+                <div style="font-size:10px;color:var(--text2);margin-top:1px">Rata-rata/stamp</div>
+              </div>
+              <div style="text-align:center;padding:8px;background:var(--bg2);border-radius:8px">
+                <div style="font-size:13px;font-weight:700;color:var(--blue)">
+                  Rp ${parseFloat(r.total_nominal || 0).toLocaleString("id-ID")}
+                </div>
+                <div style="font-size:10px;color:var(--text2);margin-top:1px">Total 10 stamp</div>
+              </div>
+            </div>
+            ${
+              r.status === "redeemed" && r.bibit_nama
+                ? `<div style="margin-top:8px;padding:7px 10px;background:var(--teal-l);
+                  border-radius:7px;font-size:12px;color:var(--teal)">
+                  ✓ Ditukar: <strong>${esc(r.bibit_nama)}</strong>
+                  ${r.redeemed_by_nama ? " · " + esc(r.redeemed_by_nama) : ""}
+                </div>`
+                : ""
+            }
+            ${
+              r.status === "pending"
+                ? `<div style="margin-top:8px;padding:7px 10px;background:var(--amber-m);
+                  border-radius:7px;font-size:12px;color:#7a4f00;text-align:center">
+                  🎁 Menunggu penukaran oleh member
+                </div>`
+                : ""
+            }
+          </div>`;
+        })
+        .join("");
+
+      return `
+        <div style="background:var(--card);border:0.5px solid var(--border);
+          border-radius:12px;padding:14px;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);
+            text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">
+            Reward (${rewards.length})
+          </div>
+          ${items}
+        </div>`;
+    })();
+
+    // ---- RIWAYAT TRANSAKSI — per siklus card ----
+    const riwayatHTML = (() => {
+      if (!riwayat.length)
+        return `
+        <div style="background:var(--card);border:0.5px solid var(--border);
+          border-radius:12px;padding:14px;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);
+            text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">
+            Riwayat Transaksi
+          </div>
+          <div style="font-size:12px;color:var(--text2);text-align:center;padding:12px 0">
+            Belum ada transaksi
+          </div>
+        </div>`;
+
+      // Kelompokkan per siklus (sama persis dengan portal customer)
+      const siklus = {};
+      riwayat.forEach((t) => {
+        const stampMin = parseInt(t.stamp_ke_min || 0);
+        const stampMax = parseInt(t.stamp_ke_max || 0);
+
+        if (stampMin === 0 && stampMax === 0) {
+          if (!siklus["0"]) siklus["0"] = { trxs: [] };
+          siklus["0"].trxs.push(t);
+          return;
+        }
+
+        // Transaksi bisa melintasi 2 siklus, masukkan ke semua siklus yang dilintasi
+        const siklusMin = Math.ceil(stampMin / 10);
+        const siklusMax = Math.ceil(stampMax / 10);
+
+        for (let n = siklusMin; n <= siklusMax; n++) {
+          if (!siklus[n]) {
+            siklus[n] = {
+              nomor: n,
+              stamp_dari: (n - 1) * 10 + 1,
+              stamp_ke: n * 10,
+              trxs: [],
+            };
+          }
+          // Hindari duplikat transaksi yang sama
+          if (!siklus[n].trxs.find((x) => x.id === t.id)) {
+            siklus[n].trxs.push(t);
+          }
+        }
+      });
+
+      const sortedSiklus = Object.values(siklus)
+        .filter((s) => s.nomor)
+        .sort((a, b) => b.nomor - a.nomor);
+
+      const rewardTrxs =
+        siklus["0"]?.trxs.filter((t) => t.kode_nota.startsWith("REWARD-")) ||
+        [];
+
+      const cards = sortedSiklus
+        .map((s) => {
+          const reward = rewards.find(
+            (r) => parseInt(r.stamp_snapshot) === s.stamp_ke,
+          );
+
+          const allStampKe = [];
+          s.trxs.forEach((t) => {
+            const min = parseInt(t.stamp_ke_min || 0);
+            const max = parseInt(t.stamp_ke_max || 0);
+            for (let i = min; i <= max; i++) allStampKe.push(i);
+          });
+          const stampDiSiklus = [...new Set(allStampKe)].filter(
+            (k) => k >= s.stamp_dari && k <= s.stamp_ke,
+          ).length;
+          const isComplete = stampDiSiklus >= 10;
+
+          // Header style
+          let headerBg, headerColor, statusLabel;
+          if (reward?.status === "redeemed") {
+            headerBg = "var(--teal-l)";
+            headerColor = "var(--teal)";
+            statusLabel = `<span style="font-size:11px;background:var(--teal-l);color:var(--teal);
+            padding:2px 8px;border-radius:99px;font-weight:600;border:0.5px solid #9fe1cb">✓ Reward Ditukar</span>`;
+          } else if (reward?.status === "pending") {
+            headerBg = "#fffbe6";
+            headerColor = "#7a4f00";
+            statusLabel = `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;
+            padding:2px 8px;border-radius:99px;font-weight:600">🎁 Reward Tersedia</span>`;
+          } else if (isComplete) {
+            headerBg = "var(--blue-l)";
+            headerColor = "var(--blue)";
+            statusLabel = `<span style="font-size:11px;background:var(--blue-l);color:var(--blue);
+            padding:2px 8px;border-radius:99px;font-weight:600">✓ Lengkap</span>`;
+          } else {
+            headerBg = "var(--bg2)";
+            headerColor = "var(--text)";
+            statusLabel = `<span style="font-size:11px;background:var(--bg2);color:var(--text2);
+            padding:2px 8px;border-radius:99px;font-weight:600;
+            border:0.5px solid var(--border)">${stampDiSiklus}/10 stamp</span>`;
+          }
+
+          // Mini grid
+          let miniGrid = "";
+          for (let i = 1; i <= 10; i++) {
+            const globalKe = s.stamp_dari + i - 1;
+            const filled = allStampKe.includes(globalKe);
+            miniGrid += `<div style="width:100%;aspect-ratio:1;border-radius:5px;
+            background:${filled ? "var(--amber)" : "var(--bg)"};
+            border:1px solid ${filled ? "var(--amber)" : "var(--border)"};
+            display:flex;align-items:center;justify-content:center;font-size:9px">
+            ${filled ? "🎫" : ""}
+          </div>`;
+          }
+
+          // Reward info di dalam card
+          const rewardInfo = reward
+            ? reward.status === "pending"
+              ? `<div style="margin-top:8px;padding:8px 10px;background:var(--amber-m);
+                border-radius:7px;font-size:12px;color:#7a4f00;text-align:center">
+                🎁 Reward menunggu penukaran oleh member
+              </div>`
+              : reward.status === "redeemed"
+                ? `<div style="margin-top:8px;padding:8px 10px;background:var(--teal-l);
+                border-radius:7px;font-size:12px;color:var(--teal)">
+                ✓ Ditukar: <strong>${esc(reward.bibit_nama || "-")}</strong>
+                ${reward.redeemed_by_nama ? " · " + esc(reward.redeemed_by_nama) : ""}
+              </div>`
+                : ""
+            : "";
+
+          // List transaksi
+          const trxRows = s.trxs
+            .map((t) => {
+              const tgl = new Date(t.created_at).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              });
+              const jam = t.created_at.split(" ")[1]?.substring(0, 5) || "";
+              const isReward = t.kode_nota.startsWith("REWARD-");
+              const stampCount = parseInt(t.stamp_didapat || 0);
+
+              // Hitung nominal hanya untuk stamp yang masuk ke siklus ini
+              const nominalSiklus = (() => {
+                let total = 0;
+                const itemsPerReward = t.items_per_reward || {};
+                Object.values(itemsPerReward).forEach((groupItems) => {
+                  groupItems.forEach((item) => {
+                    const stampKe = parseInt(item.stamp_ke || 0);
+                    if (stampKe >= s.stamp_dari && stampKe <= s.stamp_ke) {
+                      total += parseFloat(item.subtotal || 0);
+                    }
+                  });
+                });
+                return total;
+              })();
+
+              const detailRows = (t.items || [])
+                .map(
+                  (item) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      font-size:11px;padding:5px 0;border-bottom:0.5px solid var(--border);gap:8px">
+      <div style="flex:1;min-width:0">
+        <span>${esc(item.bibit_nama)}</span>
+        ${
+          item.stamp_counted
+            ? `<span style="font-size:9px;background:var(--amber-m);color:#7a4f00;
+              padding:1px 5px;border-radius:99px;margin-left:3px">🎫</span>`
+            : ""
+        }
+        <div style="font-size:10px;color:var(--text2);margin-top:1px">
+          ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}
+          ${!isReward ? "× Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID") : "· Gratis"}
+        </div>
+      </div>
+      <div style="font-weight:600;white-space:nowrap;
+        color:${isReward ? "var(--teal)" : "var(--text2)"}">
+        ${isReward ? "🎁 Gratis" : "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID")}
+      </div>
+    </div>`,
+                )
+                .join("");
+
+              return `
+    <div style="border:0.5px solid var(--border);border-radius:7px;
+      margin-bottom:5px;overflow:hidden">
+      <!-- Header transaksi (bisa diklik) -->
+      <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:7px 10px;background:var(--bg2);cursor:pointer;gap:8px"
+        onclick="toggleTrxDetailAdmin('amd-td-${s.nomor}-${t.id}', this)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
+          <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:12px;font-weight:700;
+            color:${isReward ? "var(--amber)" : "var(--teal)"}">
+            ${isReward ? "🎁 Reward" : "Rp " + nominalSiklus.toLocaleString("id-ID")}
+          </div>
+          ${
+            stampCount > 0
+              ? `<div style="font-size:10px;color:var(--amber)">+${stampCount} 🎫</div>`
+              : ""
+          }
+        </div>
+        <svg id="amd-chv-${s.nomor}-${t.id}"
+          style="width:13px;height:13px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+      <!-- Detail item (collapsible) -->
+      <div id="amd-td-${s.nomor}-${t.id}" style="display:none;padding:8px 10px">
+        ${detailRows || '<div style="font-size:11px;color:var(--text2)">Tidak ada detail</div>'}
+      </div>
+    </div>`;
+            })
+            .join("");
+
+          return `
+          <div style="background:var(--card);border:0.5px solid var(--border);
+            border-radius:12px;margin-bottom:10px;overflow:hidden">
+            <div style="padding:10px 12px;background:${headerBg};
+              border-bottom:0.5px solid var(--border)">
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-bottom:8px;gap:8px">
+                <div style="font-size:13px;font-weight:700;color:${headerColor}">
+                  Siklus ${s.nomor}
+                  <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:3px">
+                    (stamp ${s.stamp_dari}–${s.stamp_ke})
+                  </span>
+                </div>
+                ${statusLabel}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px">
+                ${miniGrid}
+              </div>
+              ${rewardInfo}
+            </div>
+            <div style="padding:10px 12px">
+              <div style="font-size:11px;font-weight:600;color:var(--text2);
+                text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
+                ${s.trxs.length} Transaksi
+              </div>
+              ${trxRows}
+            </div>
+          </div>`;
+        })
+        .join("");
+
+      // Card reward transaksi
+      const rewardTrxCard = rewardTrxs.length
+        ? `<div style="background:var(--card);border:0.5px solid var(--border);
+            border-radius:12px;margin-bottom:10px;overflow:hidden">
+            <div style="padding:10px 12px;background:var(--teal-l);
+              border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
+              <span style="font-size:14px">🎁</span>
+              <span style="font-size:13px;font-weight:600;color:var(--teal)">
+                Riwayat Penukaran Reward
+              </span>
+            </div>
+            <div style="padding:10px 12px">
+              ${rewardTrxs
+                .map((t) => {
+                  const tgl = new Date(t.created_at).toLocaleDateString(
+                    "id-ID",
+                    { day: "numeric", month: "short", year: "numeric" },
+                  );
+                  return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:7px 0;border-bottom:0.5px solid var(--border);
+                    font-size:12px;gap:8px">
+                    <div>
+                      <div style="font-weight:600">${esc(t.kode_nota)}</div>
+                      <div style="font-size:11px;color:var(--text2)">${tgl} · ${esc(t.cabang_nama)}</div>
+                    </div>
+                    <div style="font-weight:700;color:var(--amber)">🎁 Reward</div>
+                  </div>`;
+                })
+                .join("")}
+            </div>
+          </div>`
+        : "";
+
+      return `
+        <div style="font-size:11px;font-weight:600;color:var(--text2);
+          text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+          Riwayat Transaksi
+        </div>
+        ${cards}
+        ${rewardTrxCard}`;
+    })();
+
+    body.innerHTML = heroHTML + stampHTML + infoHTML + rewardHTML + riwayatHTML;
+  } catch (e) {
+    document.getElementById("amd-body").innerHTML =
+      '<div class="alert alert-danger">Gagal memuat detail member</div>';
+  }
+}
+
+function toggleTrxDetailAdmin(id, headerEl) {
+  const body = document.getElementById(id);
+  if (!body) return;
+  const isOpen = body.style.display === "block";
+  body.style.display = isOpen ? "none" : "block";
+
+  const chvId = id.replace(/^amd-td-/, "amd-chv-");
+  const chv = document.getElementById(chvId);
+  if (chv) chv.style.transform = isOpen ? "" : "rotate(180deg)";
+}
+
+// ---- Edit Member ----
+function openEditMemberAdmin(id, nama, noHp) {
+  document.getElementById("ame-id").value = id;
+  document.getElementById("ame-nama").value = nama;
+  document.getElementById("ame-hp").value = noHp;
+  document.getElementById("ame-err").textContent = "";
+  openModal("modal-admin-member-edit");
+}
+
+async function simpanEditMemberAdmin() {
+  const id = document.getElementById("ame-id").value;
+  const nama = document.getElementById("ame-nama").value.trim();
+  const hp = document.getElementById("ame-hp").value.trim();
+  const err = document.getElementById("ame-err");
+
+  if (!nama) {
+    err.textContent = "Nama wajib diisi";
+    return;
+  }
+  if (!hp) {
+    err.textContent = "No HP wajib diisi";
+    return;
+  }
+
+  try {
+    const res = await api(`${BASE_URL}/api/member_admin.php`, "PUT", {
+      id,
+      nama,
+      no_hp: hp,
+    });
+    if (res.success) {
+      closeModal("modal-admin-member-edit");
+      toastOk("Data member berhasil diperbarui");
+      loadMemberAdminPage(memberAdminPage);
+      loadMemberAdminStats();
+    } else {
+      err.textContent = res.message || "Gagal menyimpan";
+    }
+  } catch (e) {
+    err.textContent = e.message;
+  }
+}
+
+// ---- Hapus Member ----
+async function hapusMemberAdmin(id, nama) {
+  if (
+    !confirm(
+      `Hapus member "${nama}"?\n\nSeluruh data stamp dan reward member ini akan ikut terhapus.`,
+    )
+  )
+    return;
+  try {
+    const res = await api(`${BASE_URL}/api/member_admin.php`, "DELETE", { id });
+    if (res.success) {
+      toastOk(`Member ${nama} berhasil dihapus`);
+      loadMemberAdminPage(memberAdminPage);
+      loadMemberAdminStats();
+    } else {
+      toastErr(res.message || "Gagal menghapus");
+    }
+  } catch (e) {
+    toastErr(e.message);
+  }
+}
+
+// ---- Tambah Member (dari admin) ----
+function openTambahMemberAdmin() {
+  // Reuse modal daftar member yang sudah ada di karyawan,
+  // tapi isi cabang_id dari pilihan filter aktif
+  document.getElementById("dm-admin-cabang").innerHTML = cabangData
+    .map((c) => `<option value="${c.id}">${esc(c.nama)}</option>`)
+    .join("");
+  document.getElementById("dm-admin-nama").value = "";
+  document.getElementById("dm-admin-hp").value = "";
+  document.getElementById("dm-admin-catatan").value = "";
+  document.getElementById("dm-admin-err").textContent = "";
+
+  // Kalau ada pilihan cabang aktif, simpan untuk dikirim
+  window._adminTambahMemberCabangId =
+    memberAdminCabang !== "all" ? memberAdminCabang : cabangData[0]?.id || null;
+
+  openModal("modal-admin-daftar-member");
+}
+
+async function simpanTambahMemberAdmin() {
+  const nama = document.getElementById("dm-admin-nama").value.trim();
+  const no_hp = document.getElementById("dm-admin-hp").value.trim();
+  const catatan = document.getElementById("dm-admin-catatan").value.trim();
+  const cabang_id = document.getElementById("dm-admin-cabang").value;
+  const errEl = document.getElementById("dm-admin-err");
+
+  if (!nama) {
+    errEl.textContent = "Nama wajib diisi";
+    return;
+  }
+  if (!no_hp) {
+    errEl.textContent = "No HP wajib diisi";
+    return;
+  }
+  if (!cabang_id) {
+    errEl.textContent = "Pilih cabang asal";
+    return;
+  }
+
+  try {
+    const res = await api(`${BASE_URL}/api/member_admin.php`, "POST", {
+      action: "tambah",
+      nama,
+      no_hp,
+      catatan,
+      cabang_id: parseInt(cabang_id),
+    });
+    if (res.success) {
+      closeModal("modal-admin-daftar-member");
+      toastOk(`Member ${nama} berhasil didaftarkan`);
+      loadMemberAdminPage(1);
+      loadMemberAdminStats();
+    } else {
+      errEl.textContent = res.message || "Gagal mendaftarkan";
+    }
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
 //thank you//

@@ -70,6 +70,7 @@ $user = currentUser();
   <button class="tab-btn" onclick="switchTab('rekap')">Rekap Bulanan</button>
   <button class="tab-btn" onclick="switchTab('users')">Kelola User</button>
   <button class="tab-btn" onclick="switchTab('produk')">Produk & Distribusi</button>
+  <button class="tab-btn" onclick="switchTab('member')">Member</button>
 </div>
 
 <!-- ===== KONTEN TAB ===== -->
@@ -80,6 +81,7 @@ $user = currentUser();
   <div id="tab-rekap"   class="tab-content"></div>
   <div id="tab-users"   class="tab-content"></div>
   <div id="tab-produk"  class="tab-content"></div>
+  <div id="tab-member" class="tab-content"></div>
 </div>
 
 <!-- ===== MODAL — EDIT STOK ===== -->
@@ -325,6 +327,70 @@ $user = currentUser();
   </div>
 </div>
 
+<!-- MODAL DETAIL MEMBER (ADMIN) -->
+<div class="modal-bg" id="modal-admin-member-detail">
+  <div class="modal" style="max-width:560px;width:95%">
+    <div class="modal-title" id="amd-title">Detail Member</div>
+    <div id="amd-body" style="max-height:70vh;overflow-y:auto">
+      <div class="loading">Memuat...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-admin-member-detail')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT MEMBER (ADMIN) -->
+<div class="modal-bg" id="modal-admin-member-edit">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Edit Member</div>
+    <div class="form-group">
+      <label>Nama Lengkap</label>
+      <input type="text" id="ame-nama" placeholder="Nama member"/>
+    </div>
+    <div class="form-group">
+      <label>No HP</label>
+      <input type="tel" id="ame-hp" placeholder="08xxxxxxxxxx"/>
+    </div>
+    <input type="hidden" id="ame-id"/>
+    <div id="ame-err" class="err-msg"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-admin-member-edit')">Batal</button>
+      <button class="btn btn-primary" onclick="simpanEditMemberAdmin()">Simpan</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL TAMBAH MEMBER (ADMIN) -->
+<div class="modal-bg" id="modal-admin-daftar-member">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Tambah Member Baru</div>
+    <div class="form-group">
+      <label>Nama Lengkap <span style="color:var(--red)">*</span></label>
+      <input type="text" id="dm-admin-nama" placeholder="Nama lengkap customer"/>
+    </div>
+    <div class="form-group">
+      <label>No HP <span style="color:var(--red)">*</span></label>
+      <input type="tel" id="dm-admin-hp" placeholder="08xxxxxxxxxx"/>
+    </div>
+    <div class="form-group">
+      <label>Cabang Asal <span style="color:var(--red)">*</span></label>
+      <select id="dm-admin-cabang">
+        ${cabangData?.map(c =>
+          `<option value="${c.id}">${c.nama}</option>`
+        ).join('') || ''}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Catatan (opsional)</label>
+      <input type="text" id="dm-admin-catatan" placeholder="e.g. pelanggan tetap"/>
+    </div>
+    <div id="dm-admin-err" class="err-msg"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-admin-daftar-member')">Batal</button>
+      <button class="btn btn-primary" onclick="simpanTambahMemberAdmin()">Daftar</button>
+    </div>
+  </div>
+</div>
 <!-- Data user dari PHP untuk JavaScript -->
 <script>
   const CURRENT_USER = {
