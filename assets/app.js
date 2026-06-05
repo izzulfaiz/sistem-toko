@@ -1993,6 +1993,9 @@ function renderNota() {
 
       // Tentukan apakah stamp_counted bisa dicentang
       // Jika item ini mix, semua bibit dalam mix yang sama harus ikut atau tidak
+      // Cek apakah item ini aksesoris (tidak boleh single stamp)
+      const produkData = allProduk.find((p) => p.id == item.bibit_id);
+      const isAksesoris = produkData?.kategori === "aksesoris";
       const isInMix = !!item.mix_group;
 
       // Cek apakah mix group ini sudah ada yang dicentang
@@ -2011,14 +2014,27 @@ function renderNota() {
 
       let stampControl = "";
       if (!isInMix) {
-        // Single item: checkbox individual
-        stampControl = `
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0" title="Masukkan ke stamp">
-            <input type="checkbox" ${item.stamp_counted ? "checked" : ""}
-              onchange="toggleStamp(${i}, this.checked)"
-              style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer"/>
-            <span style="font-size:10px;color:var(--text2)">Stamp</span>
-          </label>`;
+        if (isAksesoris) {
+          // Aksesoris tidak boleh single stamp
+          stampControl = `
+      <span style="font-size:10px;color:var(--text2);flex-shrink:0;padding:2px 6px;
+        background:var(--bg2);border-radius:6px" title="Aksesoris tidak bisa di-stamp sendiri">
+        —
+      </span>`;
+          // Pastikan stamp_counted false
+          if (item.stamp_counted) {
+            notaItems[i].stamp_counted = false;
+          }
+        } else {
+          // Single item non-aksesoris: checkbox individual
+          stampControl = `
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0" title="Masukkan ke stamp">
+        <input type="checkbox" ${item.stamp_counted ? "checked" : ""}
+          onchange="toggleStamp(${i}, this.checked)"
+          style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer"/>
+        <span style="font-size:10px;color:var(--text2)">Stamp</span>
+      </label>`;
+        }
       } else if (isFirstInMixGroup) {
         // Mix: hanya tampilkan 1 checkbox di item pertama grup, kontrol seluruh grup
         stampControl = `
@@ -2129,7 +2145,7 @@ function setMixGroup(idx, val) {
     // Sync stamp_counted ke semua item dalam mix group yang sama
     // Ambil status stamp dari item pertama di mix group ini
     const firstInGroup = notaItems.find(
-      (x, xi) => xi !== idx && x.mix_group === num
+      (x, xi) => xi !== idx && x.mix_group === num,
     );
     if (firstInGroup) {
       // Ikut status stamp group yang sudah ada

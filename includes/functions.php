@@ -624,13 +624,27 @@ function simpanTransaksiDenganStamp(
             $mix_group   = isset($item['mix_group']) ? (int)$item['mix_group'] : null;
             $stamp_counted = isset($item['stamp_counted']) && $item['stamp_counted'] ? 1 : 0;
 
+// Ambil kategori bibit ini
+$bibitInfo  = getBibitById($bibit_id);
+$isAksesoris = ($bibitInfo['kategori'] ?? '') === 'aksesoris';
+
+// Aksesoris tidak boleh single stamp
+// Tapi kalau dalam mix group dengan bibit lain, ikut mix (stamp_group diset)
+// tanpa menjadi stamp sendiri
+if ($isAksesoris && !$mix_group) {
+    // Aksesoris tanpa mix → paksa stamp_counted = 0
+    $stamp_counted = 0;
+}
+
 // Safety net: kalau item punya mix_group dan mix_group itu
-// ada item lain yang stamp_counted = 1, ikut stamp juga
+// ada item lain (non-aksesoris) yang stamp_counted = 1, ikut mix
 if (!$stamp_counted && $mix_group) {
     foreach ($items as $otherItem) {
-        $otherMix     = isset($otherItem['mix_group']) ? (int)$otherItem['mix_group'] : null;
-        $otherStamped = isset($otherItem['stamp_counted']) && $otherItem['stamp_counted'];
-        if ($otherMix === $mix_group && $otherStamped) {
+        $otherMix      = isset($otherItem['mix_group']) ? (int)$otherItem['mix_group'] : null;
+        $otherStamped  = isset($otherItem['stamp_counted']) && $otherItem['stamp_counted'];
+        $otherBibit    = getBibitById((int)$otherItem['bibit_id']);
+        $otherAksesoris = ($otherBibit['kategori'] ?? '') === 'aksesoris';
+        if ($otherMix === $mix_group && $otherStamped && !$otherAksesoris) {
             $stamp_counted = 1;
             break;
         }

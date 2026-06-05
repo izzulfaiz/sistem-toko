@@ -631,7 +631,7 @@ function renderPortal(data) {
   const content = document.getElementById('portal-content');
 
   content.innerHTML = `
-    ${renderHero(member, stats, rewards.filter(r => r.status === 'pending').length)}
+    ${renderHero(member, stats, rewards.filter(r => r.status === 'redeemed').length)}
     ${renderStampProgress(member)}
     ${renderRewards(rewards)}
     ${renderQR(member)}
@@ -716,6 +716,7 @@ function renderRewards(rewards) {
   }
 
   const items = rewards.map((r, idx) => {
+    const nomorReward = Math.floor(parseInt(r.stamp_snapshot) / 10);
     const statusBadge =
       r.status === 'pending'
         ? `<span class="badge badge-pending">🎁 Bisa Ditukar</span>`
@@ -744,7 +745,7 @@ function renderRewards(rewards) {
       <div class="reward-item">
         <div class="reward-head">
           <div>
-            <div class="reward-title">Reward ke-${idx + 1}</div>
+            <div class="reward-title">Reward ke-${nomorReward}</div>
             <div class="reward-date">${tgl}</div>
           </div>
           ${statusBadge}
@@ -792,52 +793,45 @@ function renderRiwayat(riwayat, rewards) {
       <div class="card"><div class="empty" style="padding:16px">Belum ada transaksi</div></div>`;
   }
 
-  // Kelompokkan transaksi per siklus 10 stamp
-  // Siklus 1 = stamp_ke 1-10, Siklus 2 = stamp_ke 11-20, dst
-  const siklus = {}; // key: nomor siklus (1,2,3,...)
-
+  // Kelompokkan per siklus — transaksi lintas siklus masuk ke SEMUA siklus yang dilintasi
+  const siklus = {};
   riwayat.forEach(t => {
     const stampMin = parseInt(t.stamp_ke_min || 0);
     const stampMax = parseInt(t.stamp_ke_max || 0);
 
     if (stampMin === 0 && stampMax === 0) {
-      // Transaksi tanpa stamp (reward / tidak ada stamp)
-      if (!siklus['0']) siklus['0'] = { trxs: [], stamps: [] };
+      if (!siklus['0']) siklus['0'] = { trxs: [] };
       siklus['0'].trxs.push(t);
       return;
     }
 
-    // Tentukan siklus berdasarkan stamp_ke_min
-    // stamp 1-10 → siklus 1, stamp 11-20 → siklus 2, dst
-    const nomorSiklus = Math.ceil(stampMin / 10);
+    const siklusMin = Math.ceil(stampMin / 10);
+    const siklusMax = Math.ceil(stampMax / 10);
 
-    if (!siklus[nomorSiklus]) {
-      siklus[nomorSiklus] = {
-        nomor:      nomorSiklus,
-        stamp_dari: (nomorSiklus - 1) * 10 + 1,
-        stamp_ke:   nomorSiklus * 10,
-        trxs:       [],
-      };
+    for (let n = siklusMin; n <= siklusMax; n++) {
+      if (!siklus[n]) {
+        siklus[n] = {
+          nomor:      n,
+          stamp_dari: (n - 1) * 10 + 1,
+          stamp_ke:   n * 10,
+          trxs:       [],
+        };
+      }
+      if (!siklus[n].trxs.find(x => x.id === t.id)) {
+        siklus[n].trxs.push(t);
+      }
     }
-    siklus[nomorSiklus].trxs.push(t);
   });
 
-  // Urutkan siklus dari terbaru (nomor besar) ke terlama
   const sortedSiklus = Object.values(siklus)
-    .filter(s => s.nomor) // exclude siklus 0 (tanpa stamp)
+    .filter(s => s.nomor)
     .sort((a, b) => b.nomor - a.nomor);
 
-  // Siklus tanpa stamp (reward gratis dll) ditaruh paling bawah
-  const siklusNoStamp = siklus['0'] || null;
+  const rewardTrxs = siklus['0']?.trxs.filter(t => t.kode_nota.startsWith('REWARD-')) || [];
 
   const cards = sortedSiklus.map(s => {
-    // Cek apakah siklus ini sudah punya reward
-    const reward = rewards.find(r =>
-      parseInt(r.stamp_snapshot) === s.stamp_ke
-    );
+    const reward = rewards.find(r => parseInt(r.stamp_snapshot) === s.stamp_ke);
 
-    // Hitung total stamp yang sudah terkumpul di siklus ini
-    // dari riwayat yang ada
     const allStampKe = [];
     s.trxs.forEach(t => {
       const min = parseInt(t.stamp_ke_min || 0);
@@ -847,11 +841,8 @@ function renderRiwayat(riwayat, rewards) {
     const stampDiSiklus = [...new Set(allStampKe)].filter(
       k => k >= s.stamp_dari && k <= s.stamp_ke
     ).length;
-
     const isComplete = stampDiSiklus >= 10;
-    const pct        = Math.min(100, (stampDiSiklus / 10) * 100);
 
-    // Header warna berdasarkan status
     let headerBg, headerColor, statusLabel;
     if (reward?.status === 'redeemed') {
       headerBg    = 'var(--teal-l)';
@@ -871,77 +862,18 @@ function renderRiwayat(riwayat, rewards) {
       statusLabel = `<span style="font-size:11px;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:99px;font-weight:600;border:0.5px solid var(--border)">${stampDiSiklus}/10 stamp</span>`;
     }
 
-    // Mini stamp grid (10 kotak kecil)
     let miniGrid = '';
     for (let i = 1; i <= 10; i++) {
-      const globalStampKe = s.stamp_dari + i - 1;
-      const filled = allStampKe.includes(globalStampKe);
-      miniGrid += `<div style="
-        width:100%;aspect-ratio:1;border-radius:6px;
+      const globalKe = s.stamp_dari + i - 1;
+      const filled   = allStampKe.includes(globalKe);
+      miniGrid += `<div style="width:100%;aspect-ratio:1;border-radius:6px;
         background:${filled ? 'var(--amber)' : 'var(--bg)'};
         border:1px solid ${filled ? 'var(--amber)' : 'var(--border)'};
-        display:flex;align-items:center;justify-content:center;
-        font-size:10px;
-      ">${filled ? '🎫' : ''}</div>`;
+        display:flex;align-items:center;justify-content:center;font-size:10px">
+        ${filled ? '🎫' : ''}
+      </div>`;
     }
 
-    // List transaksi dalam siklus ini
-    const trxRows = s.trxs.map(t => {
-      const tgl = new Date(t.created_at).toLocaleDateString('id-ID', {
-        day: 'numeric', month: 'short', year: 'numeric'
-      });
-      const jam        = t.created_at.split(' ')[1]?.substring(0, 5) || '';
-      const isReward   = t.kode_nota.startsWith('REWARD-');
-      const stampCount = parseInt(t.stamp_didapat || 0);
-
-      const detailRows = (t.items || []).map(item => `
-        <div style="display:flex;justify-content:space-between;align-items:center;
-          font-size:11px;padding:4px 0;border-bottom:0.5px solid var(--border);gap:8px">
-          <div>
-            <span>${esc(item.bibit_nama)}</span>
-            ${item.stamp_counted
-              ? `<span style="font-size:9px;background:var(--amber-m);color:#7a4f00;
-                  padding:1px 5px;border-radius:99px;margin-left:3px">🎫</span>`
-              : ''}
-            <div style="font-size:10px;color:var(--text2)">
-              ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}
-              × Rp ${parseFloat(item.harga_satuan).toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div style="font-weight:500;color:var(--text2);white-space:nowrap">
-            Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}
-          </div>
-        </div>`).join('');
-
-      return `
-        <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
-          <div style="display:flex;align-items:center;justify-content:space-between;
-            padding:8px 10px;background:var(--bg2);cursor:pointer;gap:8px"
-            onclick="toggleTrxDetail('td-${t.id}', this)">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
-              <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:12px;font-weight:700;color:${isReward ? 'var(--amber)' : 'var(--teal)'}">
-                ${isReward ? '🎁 Reward' : 'Rp ' + parseFloat(t.total).toLocaleString('id-ID')}
-              </div>
-              ${stampCount > 0
-                ? `<div style="font-size:10px;color:var(--amber)">+${stampCount} 🎫</div>`
-                : ''}
-            </div>
-            <svg style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
-              id="chv-${t.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </div>
-          <div id="td-${t.id}" style="display:none;padding:8px 10px">
-            ${detailRows || '<div style="font-size:11px;color:var(--text2)">-</div>'}
-          </div>
-        </div>`;
-    }).join('');
-
-    // Info reward (kalau ada)
     const rewardInfo = reward
       ? reward.status === 'pending'
         ? `<div style="margin-top:10px;padding:10px 12px;background:var(--amber-m);
@@ -952,20 +884,114 @@ function renderRiwayat(riwayat, rewards) {
         ? `<div style="margin-top:10px;padding:10px 12px;background:var(--teal-l);
             border-radius:8px;font-size:12px;color:var(--teal)">
             ✓ Reward sudah ditukar dengan <strong>${esc(reward.bibit_nama || '-')}</strong>
-            ${reward.redeemed_by_nama ? ' · ' + esc(reward.redeemed_by_nama) : ''}
           </div>`
         : ''
       : '';
 
+    const trxRows = s.trxs.map(t => {
+      const tgl        = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+      const jam        = t.created_at.split(' ')[1]?.substring(0, 5) || '';
+      const isReward   = t.kode_nota.startsWith('REWARD-');
+      const stampCount = parseInt(t.stamp_didapat || 0);
+      const itemsPerReward = t.items_per_reward || {};
+
+      // Hitung nominal hanya untuk stamp yang masuk siklus ini
+      const nominalSiklus = (() => {
+        let total = 0;
+        Object.values(itemsPerReward).forEach(groupItems => {
+          groupItems.forEach(item => {
+            const stampKe = parseInt(item.stamp_ke || 0);
+            if (stampKe >= s.stamp_dari && stampKe <= s.stamp_ke) {
+              total += parseFloat(item.subtotal || 0);
+            }
+          });
+        });
+        return total;
+      })();
+
+      const rewardGroups = Object.keys(itemsPerReward);
+
+      const groupedHTML = rewardGroups.map(groupKey => {
+        const groupItems    = itemsPerReward[groupKey];
+        const isProgress    = groupKey === 'progress';
+
+        const filteredItems = groupItems.filter(item => {
+          const stampKe = parseInt(item.stamp_ke || 0);
+          return stampKe >= s.stamp_dari && stampKe <= s.stamp_ke;
+        });
+        if (!filteredItems.length) return '';
+
+        const groupLabel = isProgress
+          ? `<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>`
+          : '';
+
+        const itemRows = filteredItems.map(item => {
+          if (item.is_mix) {
+            return `
+              <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
+                <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
+                <div style="display:flex;justify-content:space-between">
+                  <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(' + ') : ''}</div>
+                  <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}</div>
+                </div>
+              </div>`;
+          } else {
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;
+                padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? 'var(--blue)' : 'var(--teal)'};
+                margin:3px 0;gap:8px">
+                <div>
+                  <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)}
+                    <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
+                </div>
+                <div style="font-size:11px;font-weight:600;white-space:nowrap">
+                  Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}
+                </div>
+              </div>`;
+          }
+        }).join('');
+
+        return `
+          <div style="margin-bottom:6px">
+            ${groupLabel}
+            ${itemRows}
+          </div>`;
+      }).filter(Boolean).join('<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>');
+
+      return `
+        <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;
+            padding:8px 10px;background:var(--bg2);gap:8px;cursor:pointer"
+            onclick="toggleTrxDetail('ptd-${s.nomor}-${t.id}', this)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
+              <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:12px;font-weight:700;color:${isReward ? 'var(--amber)' : 'var(--teal)'}">
+                ${isReward ? '🎁 Reward' : 'Rp ' + nominalSiklus.toLocaleString('id-ID')}
+              </div>
+              ${stampCount > 0 ? `<div style="font-size:10px;color:var(--amber)">+${stampCount} 🎫</div>` : ''}
+            </div>
+            <svg id="pchv-${s.nomor}-${t.id}"
+              style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </div>
+          <div id="ptd-${s.nomor}-${t.id}" style="display:none;padding:8px 10px">
+            ${groupedHTML || '<div style="font-size:11px;color:var(--text2)">-</div>'}
+          </div>
+        </div>`;
+    }).join('');
+
     return `
       <div style="background:var(--card);border:0.5px solid var(--border);
         border-radius:14px;margin-bottom:14px;overflow:hidden">
-
-        <!-- Card Header -->
-        <div style="padding:12px 14px;background:${headerBg};
-          border-bottom:0.5px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between;
-            margin-bottom:8px;gap:8px">
+        <div style="padding:12px 14px;background:${headerBg};border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px">
             <div style="font-size:14px;font-weight:700;color:${headerColor}">
               Siklus ${s.nomor}
               <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:4px">
@@ -974,16 +1000,9 @@ function renderRiwayat(riwayat, rewards) {
             </div>
             ${statusLabel}
           </div>
-
-          <!-- Mini stamp grid -->
-          <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">
-            ${miniGrid}
-          </div>
-
+          <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">${miniGrid}</div>
           ${rewardInfo}
         </div>
-
-        <!-- Transaksi list -->
         <div style="padding:10px 12px">
           <div style="font-size:11px;font-weight:600;color:var(--text2);
             text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
@@ -994,67 +1013,62 @@ function renderRiwayat(riwayat, rewards) {
       </div>`;
   }).join('');
 
-  // Card transaksi tanpa stamp (reward gratis dll)
-  // Pisahkan reward transaksi dan TRX tanpa stamp
-const rewardTrxs = siklusNoStamp?.trxs.filter(t => t.kode_nota.startsWith('REWARD-')) || [];
-
-const noStampCard = rewardTrxs.length
-  ? `<div style="background:var(--card);border:0.5px solid var(--border);
-      border-radius:14px;margin-bottom:14px;overflow:hidden">
-      <div style="padding:10px 14px;background:var(--teal-l);border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
-        <span style="font-size:16px">🎁</span>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--teal)">Riwayat Penukaran Reward</div>
-          <div style="font-size:11px;color:var(--teal);opacity:.7;margin-top:1px">${rewardTrxs.length} penukaran</div>
+  const rewardTrxCard = rewardTrxs.length
+    ? `<div style="background:var(--card);border:0.5px solid var(--border);
+        border-radius:14px;margin-bottom:14px;overflow:hidden">
+        <div style="padding:10px 14px;background:var(--teal-l);border-bottom:0.5px solid var(--border);
+          display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">🎁</span>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--teal)">Riwayat Penukaran Reward</div>
+            <div style="font-size:11px;color:var(--teal);opacity:.7;margin-top:1px">${rewardTrxs.length} penukaran</div>
+          </div>
         </div>
+        <div style="padding:10px 12px">
+          ${rewardTrxs.map(t => {
+            const tgl = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+            const jam = t.created_at.split(' ')[1]?.substring(0, 5) || '';
+            console.log('reward trx items:', t.id, t.items);
+const detailRows = (t.items || []).map(item => `
+  <div style="display:flex;justify-content:space-between;align-items:center;
+    font-size:11px;padding:6px 0;border-bottom:0.5px solid var(--border);gap:8px">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12px;font-weight:500">${esc(item.bibit_nama)}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:1px">
+        ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)} · Gratis 🎁
       </div>
-      <div style="padding:10px 12px">
-        ${rewardTrxs.map(t => {
-          const tgl = new Date(t.created_at).toLocaleDateString('id-ID', {
-            day: 'numeric', month: 'short', year: 'numeric'
-          });
-          const jam = t.created_at.split(' ')[1]?.substring(0, 5) || '';
-
-          const detailRows = (t.items || []).map(item => `
-            <div style="display:flex;justify-content:space-between;align-items:center;
-              font-size:11px;padding:4px 0;border-bottom:0.5px solid var(--border);gap:8px">
-              <div>
-                <span>${esc(item.bibit_nama)}</span>
-                <div style="font-size:10px;color:var(--text2)">
-                  ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)} · Gratis
+    </div>
+    <span style="font-size:12px;font-weight:700;color:var(--teal);white-space:nowrap">Gratis</span>
+  </div>`).join('');
+            return `
+              <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
+                <div style="display:flex;align-items:center;justify-content:space-between;
+                  padding:8px 10px;background:var(--bg2);cursor:pointer;gap:8px"
+                  onclick="toggleTrxDetail('ptd-reward-${t.id}', this)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
+                    <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
+                  </div>
+                  <div style="font-size:12px;font-weight:700;color:var(--amber)">🎁 Reward Ditukar</div>
+                  <svg id="pchv-reward-${t.id}"
+                    style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
                 </div>
-              </div>
-              <span style="font-size:11px;font-weight:600;color:var(--teal)">🎁 Gratis</span>
-            </div>`).join('');
-
-          return `
-            <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
-              <div style="display:flex;align-items:center;justify-content:space-between;
-                padding:8px 10px;background:var(--bg2);cursor:pointer;gap:8px"
-                onclick="toggleTrxDetail('td-${t.id}', this)">
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
-                  <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
+                <div id="ptd-reward-${t.id}" style="display:none;padding:8px 10px">
+                  ${detailRows || '<div style="font-size:11px;color:var(--text2)">-</div>'}
                 </div>
-                <div style="font-size:12px;font-weight:700;color:var(--amber)">🎁 Reward Ditukar</div>
-                <svg style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
-                  id="chv-${t.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </div>
-              <div id="td-${t.id}" style="display:none;padding:8px 10px">
-                ${detailRows || '<div style="font-size:11px;color:var(--text2)">-</div>'}
-              </div>
-            </div>`;
-        }).join('')}
-      </div>
-    </div>`
-  : '';
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`
+    : '';
 
   return `
     <div class="section-title">Riwayat Transaksi</div>
     ${cards}
-    ${noStampCard}`;
+    ${rewardTrxCard}`;
 }
 
 function toggleTrxDetail(id, headerEl) {
@@ -1062,8 +1076,8 @@ function toggleTrxDetail(id, headerEl) {
   if (!body) return;
   const isOpen = body.style.display === 'block';
   body.style.display = isOpen ? 'none' : 'block';
-  const trxId  = id.replace('td-', '');
-  const chv    = document.getElementById('chv-' + trxId);
+  const chvId = id.replace(/^ptd-/, 'pchv-');
+  const chv   = document.getElementById(chvId);
   if (chv) chv.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 // ---- Info Member ----
