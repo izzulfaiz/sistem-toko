@@ -32,12 +32,21 @@ $tgl_sampai = $_GET['tgl_sampai'] ?? null;
         $cabang_ids = [];
     }
 
-    // WHERE clause untuk multi cabang
-    $in_cabang   = count($cabang_ids) > 0 ? implode(',', $cabang_ids) : '';
-    $where_trx   = $in_cabang ? "AND t.cabang_id IN ($in_cabang)" : "";
-    $where_cab_c = $in_cabang ? "AND c.id IN ($in_cabang)" : "";
-    $where_kel_p = $in_cabang ? "AND cabang_id IN ($in_cabang)" : "";
-    $where_kel2  = $in_cabang ? "AND p.cabang_id IN ($in_cabang)" : "";
+    // Bangun IN clause aman dengan prepared statement
+if (count($cabang_ids) > 0) {
+    $ph          = implode(',', array_fill(0, count($cabang_ids), '?'));
+    $where_trx   = "AND t.cabang_id IN ($ph)";
+    $where_cab_c = "AND c.id IN ($ph)";
+    $where_kel_p = "AND cabang_id IN ($ph)";
+    $where_kel2  = "AND p.cabang_id IN ($ph)";
+} else {
+    $ph          = '';
+    $where_trx   = "";
+    $where_cab_c = "";
+    $where_kel_p = "";
+    $where_kel2  = "";
+}
+$cab_params = $cabang_ids; // array nilai cabang, dipakai di execute()
 
     // Jika ada filter rentang, pakai itu. Kalau tidak, pakai seluruh bulan
 if ($tgl_dari && $tgl_sampai) {
@@ -60,42 +69,53 @@ if ($tgl_dari && $tgl_sampai) {
         GROUP BY DATE(t.created_at)
         ORDER BY tanggal ASC
     ");
-    $stmt->execute([$tgl_awal, $tgl_akhir]);
+    $stmt->execute(array_merge([$tgl_awal, $tgl_akhir], $cab_params));
     $omzet_harian = $stmt->fetchAll();
 
-    $hari_dalam_bulan = (int)date('t', strtotime($tgl_awal));
-    $omzet_map = [];
-    foreach ($omzet_harian as $row) {
-        $omzet_map[$row['tanggal']] = $row;
-    }
+    // Bangun map omzet dari hasil query
+$omzet_map = [];
+foreach ($omzet_harian as $row) {
+    $omzet_map[$row['tanggal']] = $row;
+}
 
-    // Pengeluaran harian
-    $stmt_kel_harian = $db->prepare("
-        SELECT DATE(created_at) AS tanggal, SUM(nominal) AS total_keluar
-        FROM pengeluaran
-        WHERE created_at BETWEEN ? AND ?
-        $where_kel_p
-        GROUP BY DATE(created_at)
-    ");
-    $stmt_kel_harian->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
-    $kel_map = [];
-    foreach ($stmt_kel_harian->fetchAll() as $row) {
-        $kel_map[$row['tanggal']] = (float)$row['total_keluar'];
-    }
+// Pengeluaran harian
+$stmt_kel_harian = $db->prepare("
+    SELECT DATE(created_at) AS tanggal, SUM(nominal) AS total_keluar
+    FROM pengeluaran
+    WHERE created_at BETWEEN ? AND ?
+    $where_kel_p
+    GROUP BY DATE(created_at)
+");
+$stmt_kel_harian->execute(array_merge(
+    [$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59'],
+    $cab_params
+));
+$kel_map = [];
+foreach ($stmt_kel_harian->fetchAll() as $row) {
+    $kel_map[$row['tanggal']] = (float)$row['total_keluar'];
+}
 
-    $grafik_labels = [];
-    $grafik_omzet  = [];
-    $grafik_trx    = [];
-    $grafik_laba   = [];
-    for ($d = 1; $d <= $hari_dalam_bulan; $d++) {
-        $tgl    = sprintf('%04d-%02d-%02d', $tahun, $bulan, $d);
-        $omzet  = isset($omzet_map[$tgl]) ? (float)$omzet_map[$tgl]['omzet'] : 0;
-        $keluar = $kel_map[$tgl] ?? 0;
-        $grafik_labels[] = $d;
-        $grafik_omzet[]  = $omzet;
-        $grafik_trx[]    = isset($omzet_map[$tgl]) ? (int)$omzet_map[$tgl]['jumlah_transaksi'] : 0;
-        $grafik_laba[]   = $omzet - $keluar;
-    }
+// Loop berdasarkan rentang tanggal aktual, bukan asumsi 1 bulan penuh
+$grafik_labels = [];
+$grafik_omzet  = [];
+$grafik_trx    = [];
+$grafik_laba   = [];
+
+$current = new DateTime($tgl_awal);
+$end     = new DateTime($tgl_akhir);
+
+while ($current <= $end) {
+    $tgl    = $current->format('Y-m-d');
+    $omzet  = isset($omzet_map[$tgl]) ? (float)$omzet_map[$tgl]['omzet'] : 0;
+    $keluar = $kel_map[$tgl] ?? 0;
+
+    $grafik_labels[] = (int)$current->format('j'); // tanggal angka saja
+    $grafik_omzet[]  = $omzet;
+    $grafik_trx[]    = isset($omzet_map[$tgl]) ? (int)$omzet_map[$tgl]['jumlah_transaksi'] : 0;
+    $grafik_laba[]   = $omzet - $keluar;
+
+    $current->modify('+1 day');
+}
 
     // ---- 2. RINGKASAN PER CABANG ----
     $stmt2 = $db->prepare("
@@ -112,7 +132,7 @@ if ($tgl_dari && $tgl_sampai) {
         GROUP BY c.id, c.nama
         ORDER BY total_omzet DESC
     ");
-    $stmt2->execute([$tgl_awal, $tgl_akhir]);
+    $stmt2->execute(array_merge([$tgl_awal, $tgl_akhir], $cab_params));
     $per_cabang = $stmt2->fetchAll();
 
     // ---- 3. PRODUK TERLARIS ----
@@ -134,7 +154,7 @@ if ($tgl_dari && $tgl_sampai) {
         ORDER BY total_omzet DESC
         LIMIT 20
     ");
-    $stmt3->execute([$tgl_awal, $tgl_akhir]);
+    $stmt3->execute(array_merge([$tgl_awal, $tgl_akhir], $cab_params));
     $produk_terlaris = $stmt3->fetchAll();
 
     // ---- 4. TOTAL PENGELUARAN ----
@@ -144,7 +164,7 @@ if ($tgl_dari && $tgl_sampai) {
         WHERE created_at BETWEEN ? AND ?
         $where_kel_p
     ");
-    $stmt_kel->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
+    $stmt_kel->execute(array_merge([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59'], $cab_params));
     $kel_data     = $stmt_kel->fetch();
     $total_keluar = (float)($kel_data['total_keluar'] ?? 0);
     $jml_keluar   = (int)($kel_data['jml_keluar'] ?? 0);
@@ -160,7 +180,10 @@ if ($tgl_dari && $tgl_sampai) {
         GROUP BY c.id, c.nama
         ORDER BY total_keluar DESC
     ");
-    $stmt_kel2->execute([$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59']);
+    $stmt_kel2->execute(array_merge(
+    [$tgl_awal . ' 00:00:00', $tgl_akhir . ' 23:59:59'],
+    $cab_params
+));
     $keluar_per_cabang = $stmt_kel2->fetchAll();
 
     // ---- 5. RINGKASAN TOTAL ----

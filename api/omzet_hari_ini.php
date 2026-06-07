@@ -14,26 +14,33 @@ try {
         $tanggal = date('Y-m-d');
     }
 
-    // Ambil semua cabang dulu agar cabang omzet 0 tetap muncul
-    $stmtCabang = $db->query("SELECT id, nama FROM cabang ORDER BY nama");
-    $cabangs = $stmtCabang->fetchAll(PDO::FETCH_ASSOC);
+// Validasi cabang_id kalau ada
+$cabang_id = isset($_GET['cabang_id']) ? (int)$_GET['cabang_id'] : null;
 
-    // Hitung omzet per cabang langsung di SQL
-    $stmt = $db->prepare("
-        SELECT 
-            c.id as cabang_id,
-            c.nama as cabang_nama,
-            COALESCE(SUM(t.total), 0) as omzet
-        FROM cabang c
-        LEFT JOIN transaksi t 
-            ON t.cabang_id = c.id 
-            AND DATE(t.created_at) = ?
-            AND t.kode_nota NOT LIKE 'BATAL-%'
-        GROUP BY c.id, c.nama
-        ORDER BY c.nama
-    ");
-    $stmt->execute([$tanggal]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Bangun WHERE clause dan params
+$where_cab = "";
+$params    = [$tanggal];
+if ($cabang_id) {
+    $where_cab = "AND t.cabang_id = ?";
+    $params[]  = $cabang_id;
+}
+
+$stmt = $db->prepare("
+    SELECT 
+        c.id   AS cabang_id,
+        c.nama AS cabang_nama,
+        COALESCE(SUM(t.total), 0) AS omzet
+    FROM cabang c
+    LEFT JOIN transaksi t 
+        ON t.cabang_id = c.id 
+        AND DATE(t.created_at) = ?
+        AND t.kode_nota NOT LIKE 'BATAL-%'
+        $where_cab
+    GROUP BY c.id, c.nama
+    ORDER BY c.nama
+");
+$stmt->execute($params);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $omzet = [];
     foreach ($rows as $row) {

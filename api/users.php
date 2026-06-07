@@ -66,11 +66,18 @@ if (!empty($_POST['satuan'])) {
             if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
             $ext     = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','webp'];
-            if (!in_array($ext, $allowed))
-                jsonResponse(['success'=>false,'message'=>'Format foto tidak didukung'], 400);
-            if ($_FILES['foto']['size'] > 5 * 1024 * 1024)
-                jsonResponse(['success'=>false,'message'=>'Ukuran foto maksimal 5MB'], 400);
+$allowed = ['jpg','jpeg','png','webp'];
+if (!in_array($ext, $allowed))
+    jsonResponse(['success'=>false,'message'=>'Format foto tidak didukung. Gunakan JPG, PNG, atau WebP'], 400);
+if ($_FILES['foto']['size'] > 5 * 1024 * 1024)
+    jsonResponse(['success'=>false,'message'=>'Ukuran foto maksimal 5MB'], 400);
+
+// Validasi MIME type dari isi file, bukan dari nama file
+$finfo         = new finfo(FILEINFO_MIME_TYPE);
+$mime          = $finfo->file($_FILES['foto']['tmp_name']);
+$allowed_mimes = ['image/jpeg', 'image/png', 'image/webp'];
+if (!in_array($mime, $allowed_mimes))
+    jsonResponse(['success'=>false,'message'=>'Isi file tidak sesuai format gambar'], 400);
 
             $filename = 'produk_' . time() . '_' . uniqid() . '.' . $ext;
             if (!move_uploaded_file($_FILES['foto']['tmp_name'], $upload_dir . $filename))
@@ -245,11 +252,18 @@ if ($method === 'PATCH') {
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
         $ext     = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg','jpeg','png','webp'];
-        if (!in_array($ext, $allowed))
-            jsonResponse(['success'=>false,'message'=>'Format foto tidak didukung. Gunakan JPG, PNG, atau WebP'], 400);
-        if ($_FILES['foto']['size'] > 5 * 1024 * 1024)
-            jsonResponse(['success'=>false,'message'=>'Ukuran foto maksimal 5MB'], 400);
+$allowed = ['jpg','jpeg','png','webp'];
+if (!in_array($ext, $allowed))
+    jsonResponse(['success'=>false,'message'=>'Format foto tidak didukung'], 400);
+if ($_FILES['foto']['size'] > 5 * 1024 * 1024)
+    jsonResponse(['success'=>false,'message'=>'Ukuran foto maksimal 5MB'], 400);
+
+// Validasi MIME type dari isi file, bukan dari nama file
+$finfo         = new finfo(FILEINFO_MIME_TYPE);
+$mime          = $finfo->file($_FILES['foto']['tmp_name']);
+$allowed_mimes = ['image/jpeg', 'image/png', 'image/webp'];
+if (!in_array($mime, $allowed_mimes))
+    jsonResponse(['success'=>false,'message'=>'Isi file tidak sesuai format gambar'], 400);
 
         $filename = 'produk_' . time() . '_' . uniqid() . '.' . $ext;
         if (!move_uploaded_file($_FILES['foto']['tmp_name'], $upload_dir . $filename))

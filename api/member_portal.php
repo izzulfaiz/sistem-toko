@@ -301,26 +301,40 @@ if ($method === 'POST') {
         $no_hp = trim($body['no_hp'] ?? '');
         if (!$no_hp) portalResponse(['success' => false, 'message' => 'No HP wajib diisi'], 400);
 
-        // Rate limiting — maksimal 5 percobaan per 5 menit
-        $now        = time();
-        $attempts   = $_SESSION['login_attempts']  ?? 0;
-        $last_try   = $_SESSION['login_last_try']  ?? 0;
+        // Rate limiting berbasis IP — tabel terpisah agar tidak konflik dengan login admin
+$ip      = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$cutoff  = date('Y-m-d H:i:s', time() - 300); // 5 menit terakhir
+$max_try = 5;
 
-        // Reset counter jika sudah lebih dari 5 menit
-        if ($now - $last_try > 300) {
-            $attempts = 0;
-        }
+// Hitung percobaan dalam 5 menit terakhir
+$stmtChk = $db->prepare("
+    SELECT COUNT(*) FROM portal_login_attempts
+    WHERE ip_address = ? AND attempted_at > ?
+");
+$stmtChk->execute([$ip, $cutoff]);
+$attempts = (int)$stmtChk->fetchColumn();
 
-        if ($attempts >= 5) {
-            $sisa = 300 - ($now - $last_try);
-            portalResponse([
-                'success' => false,
-                'message' => 'Terlalu banyak percobaan login. Coba lagi dalam ' . ceil($sisa / 60) . ' menit.'
-            ], 429);
-        }
+if ($attempts >= $max_try) {
+    $stmtFirst = $db->prepare("
+        SELECT attempted_at FROM portal_login_attempts
+        WHERE ip_address = ? AND attempted_at > ?
+        ORDER BY attempted_at ASC LIMIT 1
+    ");
+    $stmtFirst->execute([$ip, $cutoff]);
+    $first_attempt = $stmtFirst->fetchColumn();
+    $sisa_detik    = max(0, strtotime($first_attempt) + 300 - time());
+    $sisa_menit    = (int)ceil($sisa_detik / 60);
 
-        $_SESSION['login_attempts'] = $attempts + 1;
-        $_SESSION['login_last_try'] = $now;
+    portalResponse([
+        'success' => false,
+        'message' => 'Terlalu banyak percobaan. Coba lagi dalam ' .
+                     ($sisa_menit <= 1 ? 'sebentar lagi' : $sisa_menit . ' menit') . '.'
+    ], 429);
+}
+
+// Catat percobaan ini
+$db->prepare("INSERT INTO portal_login_attempts (no_hp, ip_address) VALUES (?, ?)")
+   ->execute([$no_hp, $ip]);
 
         // Normalisasi: hapus strip/spasi, ganti 08 -> 628
         $no_hp_clean = preg_replace('/[\s\-()]/', '', $no_hp);
@@ -340,10 +354,9 @@ if ($method === 'POST') {
             portalResponse(['success' => false, 'message' => 'No HP tidak terdaftar sebagai member aktif'], 404);
         }
 
-        // Reset counter login setelah berhasil
-        $_SESSION['login_attempts'] = 0;
-        $_SESSION['login_last_try'] = 0;
-
+// Hapus catatan percobaan dari IP ini setelah login berhasil
+$db->prepare("DELETE FROM portal_login_attempts WHERE ip_address = ?")
+   ->execute([$ip]);
         // Regenerate session ID setelah login berhasil
 // Mencegah session fixation attack
 session_regenerate_id(true);
