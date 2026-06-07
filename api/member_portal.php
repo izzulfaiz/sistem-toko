@@ -344,6 +344,10 @@ if ($method === 'POST') {
         $_SESSION['login_attempts'] = 0;
         $_SESSION['login_last_try'] = 0;
 
+        // Regenerate session ID setelah login berhasil
+// Mencegah session fixation attack
+session_regenerate_id(true);
+
         // Simpan session
         $_SESSION['portal_member'] = [
             'id'    => $member['id'],

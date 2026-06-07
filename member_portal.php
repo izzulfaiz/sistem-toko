@@ -5,48 +5,58 @@ session_start();
 <html lang="id">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Member Portal — Mekar Wangi Indonesia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Member — Mekar Wangi</title>
   <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --amber:   #E8A020;
-      --amber-m: #fde9ba;
-      --teal:    #0F6E56;
-      --teal-l:  #e0f5ef;
-      --blue:    #3D52A0;
-      --blue-l:  #eef0fb;
-      --red:     #A32D2D;
-      --red-l:   #fff0f0;
-      --green:   #1a7a4a;
-      --text:    #1a1916;
-      --text2:   #888780;
-      --border:  #e5e3dc;
-      --bg:      #f8f7f4;
-      --bg2:     #f0ede6;
-      --card:    #ffffff;
+      --blue:      #3D52A0;
+      --blue-mid:  #5468B8;
+      --blue-l:    #EEF1FA;
+      --blue-ll:   #F5F7FD;
+      --pink:      #C2185B;
+      --pink-mid:  #D63A75;
+      --pink-l:    #FCE4EC;
+      --pink-ll:   #FEF0F5;
+      --amber:     #E8A020;
+      --amber-l:   #FEF3DC;
+      --teal:      #0F6E56;
+      --teal-l:    #E0F5EF;
+      --text:      #1C1C2E;
+      --text2:     #6B6B80;
+      --text3:     #A0A0B0;
+      --border:    #E8E8F0;
+      --bg:        #F7F8FC;
+      --card:      #FFFFFF;
+      --nav-h:     64px;
+      --top-h:     56px;
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    html, body {
+      height: 100%;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
-      padding-bottom: 40px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ---- TOPBAR ---- */
+    /* ── TOPBAR ── */
     .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--top-h);
       background: var(--blue);
-      padding: 14px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 50;
+      padding: 0 16px;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(61,82,160,0.18);
     }
     .topbar-brand {
       display: flex;
@@ -55,12 +65,12 @@ session_start();
       color: #fff;
     }
     .topbar-brand img {
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       border-radius: 8px;
+      object-fit: contain;
       background: rgba(255,255,255,0.15);
       padding: 3px;
-      object-fit: contain;
     }
     .topbar-brand span {
       font-size: 16px;
@@ -72,51 +82,121 @@ session_start();
       align-items: center;
       gap: 10px;
     }
+    .member-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 99px;
+      padding: 5px 12px 5px 6px;
+    }
     .member-avatar {
-      width: 34px;
-      height: 34px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      background: var(--amber);
+      background: var(--pink-mid);
       color: #fff;
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+    }
+    .member-chip-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .btn-logout {
       background: rgba(255,255,255,0.15);
       border: none;
-      color: #fff;
+      color: rgba(255,255,255,0.85);
       font-size: 12px;
       padding: 6px 12px;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-family: inherit;
+      font-weight: 500;
+      transition: background .15s;
     }
     .btn-logout:hover { background: rgba(255,255,255,0.25); }
 
-    /* ---- WRAPPER ---- */
-    .page { max-width: 480px; margin: 0 auto; padding: 16px; }
+    /* ── SCROLL AREA ── */
+    .page-wrap {
+      position: fixed;
+      top: var(--top-h);
+      bottom: var(--nav-h);
+      left: 0; right: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .page {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px 14px 8px;
+    }
 
-    /* ---- CARD ---- */
-    .card {
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--nav-h);
       background: var(--card);
-      border: 0.5px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      z-index: 100;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
     }
-    .card-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text2);
-      text-transform: uppercase;
-      letter-spacing: .5px;
-      margin-bottom: 12px;
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text3);
+      font-family: inherit;
+      transition: color .15s;
+      position: relative;
+    }
+    .nav-btn svg {
+      width: 22px;
+      height: 22px;
+      transition: transform .2s;
+    }
+    .nav-btn span {
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .nav-btn.active {
+      color: var(--blue);
+    }
+    .nav-btn.active svg {
+      transform: translateY(-1px);
+    }
+    .nav-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 24px;
+      height: 3px;
+      background: var(--blue);
+      border-radius: 99px 99px 0 0;
     }
 
-    /* ---- LOGIN SCREEN ---- */
+    /* ── LOGIN ── */
     .login-wrap {
       min-height: 100vh;
       display: flex;
@@ -124,131 +204,216 @@ session_start();
       align-items: center;
       justify-content: center;
       padding: 24px 20px;
+      background: linear-gradient(160deg, var(--blue-ll) 0%, var(--pink-ll) 100%);
     }
-    .login-logo {
-      width: 72px;
-      height: 72px;
-      border-radius: 18px;
+    .login-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--card);
+      border-radius: 20px;
+      padding: 28px 24px;
+      box-shadow: 0 8px 40px rgba(61,82,160,0.12);
+    }
+    .login-logo-wrap {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-logo-wrap img {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      object-fit: contain;
       background: var(--blue);
       padding: 8px;
-      object-fit: contain;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     .login-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--blue);
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .login-sub {
       font-size: 13px;
       color: var(--text2);
-      margin-bottom: 32px;
-      text-align: center;
     }
-    .login-card {
-      width: 100%;
-      max-width: 380px;
-      background: var(--card);
-      border: 0.5px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-    }
-    .login-card label {
+    .login-label {
       display: block;
       font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 6px;
+      font-weight: 600;
       color: var(--text);
+      margin-bottom: 8px;
     }
-    .login-card input {
+    .login-input {
       width: 100%;
-      padding: 12px 14px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      padding: 13px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
       font-size: 16px;
       font-family: inherit;
       background: var(--bg);
       color: var(--text);
       outline: none;
-      transition: border-color .15s;
+      transition: border-color .15s, box-shadow .15s;
+      margin-bottom: 14px;
     }
-    .login-card input:focus { border-color: var(--blue); background: #fff; }
+    .login-input:focus {
+      border-color: var(--blue);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(61,82,160,0.1);
+    }
     .btn-login {
       width: 100%;
-      padding: 13px;
-      margin-top: 16px;
-      background: var(--blue);
+      padding: 14px;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue-mid) 100%);
       color: #fff;
       border: none;
-      border-radius: 10px;
+      border-radius: 12px;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
       font-family: inherit;
       cursor: pointer;
-      transition: opacity .15s;
+      transition: opacity .15s, transform .1s;
+      letter-spacing: .2px;
     }
-    .btn-login:hover   { opacity: .9; }
-    .btn-login:active  { opacity: .8; }
+    .btn-login:hover   { opacity: .93; }
+    .btn-login:active  { transform: scale(.98); }
     .btn-login:disabled { opacity: .5; cursor: not-allowed; }
     .login-err {
-      margin-top: 10px;
+      margin-top: 12px;
       padding: 10px 12px;
-      background: var(--red-l);
-      color: var(--red);
-      border-radius: 8px;
+      background: #FFF0F0;
+      color: #A32D2D;
+      border-radius: 10px;
       font-size: 13px;
+      font-weight: 500;
       display: none;
     }
     .login-note {
       font-size: 12px;
-      color: var(--text2);
+      color: var(--text3);
       text-align: center;
-      margin-top: 16px;
+      margin-top: 14px;
     }
 
-    /* ---- HERO / HERO STAMP ---- */
-    .hero {
-      background: linear-gradient(135deg, var(--blue) 0%, #5a6fc0 100%);
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
       border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      margin-bottom: 12px;
+    }
+
+    /* ── QR HERO ── */
+    .qr-hero {
+      background: linear-gradient(145deg, var(--blue) 0%, #4a5faf 50%, var(--pink) 100%);
+      border-radius: 20px;
       padding: 20px;
-      color: #fff;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       position: relative;
       overflow: hidden;
+      color: #fff;
     }
-    .hero::after {
+    .qr-hero::before {
       content: '';
       position: absolute;
-      right: -20px;
-      top: -20px;
-      width: 100px;
-      height: 100px;
+      top: -30px; right: -30px;
+      width: 120px; height: 120px;
       border-radius: 50%;
       background: rgba(255,255,255,0.07);
     }
-    .hero-greeting { font-size: 13px; opacity: .8; margin-bottom: 3px; }
-    .hero-nama     { font-size: 20px; font-weight: 700; margin-bottom: 14px; }
-    .hero-stats    { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-    .hero-stat     { text-align: center; background: rgba(255,255,255,0.12); border-radius: 10px; padding: 10px 6px; }
-    .hero-stat-val { font-size: 22px; font-weight: 700; }
-    .hero-stat-lbl { font-size: 10px; opacity: .75; margin-top: 2px; }
+    .qr-hero::after {
+      content: '';
+      position: absolute;
+      bottom: -20px; left: -20px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+    .qr-hero-label {
+      font-size: 11px;
+      font-weight: 600;
+      opacity: .75;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .qr-hero-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: -.3px;
+    }
+    .qr-box-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .qr-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 10px;
+      flex-shrink: 0;
+    }
+    .qr-box img, .qr-box canvas {
+      display: block;
+      border-radius: 4px;
+    }
+    .qr-info {
+      flex: 1;
+    }
+    .qr-info-hint {
+      font-size: 12px;
+      opacity: .85;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .qr-code-text {
+      font-size: 10px;
+      opacity: .6;
+      font-family: monospace;
+      letter-spacing: .5px;
+      word-break: break-all;
+    }
 
-    /* ---- STAMP PROGRESS ---- */
-    .stamp-section { margin-bottom: 14px; }
+    /* ── STAMP PROGRESS ── */
+    .stamp-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
     .stamp-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
-    .stamp-title { font-size: 14px; font-weight: 600; }
-    .stamp-count { font-size: 13px; color: var(--amber); font-weight: 700; }
-
+    .stamp-header-left {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .stamp-count-badge {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--blue);
+      line-height: 1;
+    }
     .stamp-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 12px;
     }
     .stamp-box {
@@ -259,217 +424,335 @@ session_start();
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text2);
       background: var(--bg);
-      position: relative;
       transition: all .2s;
+      position: relative;
     }
     .stamp-box.filled {
-      background: var(--amber-m);
-      border-color: var(--amber);
-      color: var(--amber);
-    }
-    .stamp-box.filled .stamp-icon { font-size: 18px; }
-    .stamp-box.reward-mark {
       background: var(--blue-l);
-      border-color: var(--blue);
-      color: var(--blue);
+      border-color: var(--blue-mid);
     }
-    .stamp-box .stamp-num {
+    .stamp-box.filled .stamp-emoji { font-size: 18px; }
+    .stamp-num {
       font-size: 9px;
-      opacity: .6;
+      color: var(--text3);
+      font-weight: 500;
       margin-top: 1px;
     }
-    .stamp-progress-info {
+    .stamp-box.filled .stamp-num { color: var(--blue-mid); }
+    .stamp-bar-wrap {
+      height: 8px;
+      background: var(--bg);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .stamp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue) 0%, var(--blue-mid) 100%);
+      border-radius: 99px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+    }
+    .stamp-bar-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .stamp-total-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
       font-size: 12px;
       color: var(--text2);
-      text-align: center;
-      padding: 8px;
-      background: var(--bg2);
-      border-radius: 8px;
     }
-    .stamp-progress-info strong { color: var(--amber); }
+    .stamp-total-val {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
 
-    /* ---- REWARD LIST ---- */
+    /* ── REWARD CARD ── */
     .reward-item {
-      border: 0.5px solid var(--border);
-      border-radius: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 12px;
       margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     .reward-item:last-child { margin-bottom: 0; }
-    .reward-head {
+    .reward-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--pink-l);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .reward-info { flex: 1; min-width: 0; }
+    .reward-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .reward-date {
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .reward-nominal {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .reward-nominal-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--pink);
+    }
+    .reward-nominal-lbl {
+      font-size: 10px;
+      color: var(--text3);
+    }
+
+    /* ── RIWAYAT ── */
+    .siklus-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .siklus-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .siklus-header-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 8px;
+      gap: 8px;
     }
-    .reward-title { font-size: 13px; font-weight: 600; }
-    .reward-date  { font-size: 11px; color: var(--text2); }
+    .siklus-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+    }
+    .siklus-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 3px;
+    }
+    .siklus-dot {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+    .siklus-dot.filled {
+      background: var(--blue-mid);
+      border-color: var(--blue-mid);
+    }
+    .siklus-body { padding: 10px 14px; }
     .badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 8px;
+      padding: 3px 9px;
       border-radius: 99px;
       font-size: 11px;
       font-weight: 600;
     }
-    .badge-pending  { background: var(--amber-m); color: #7a4f00; }
     .badge-redeemed { background: var(--teal-l); color: var(--teal); }
-    .badge-cancelled{ background: var(--bg2); color: var(--text2); }
-    .reward-nominal {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .reward-nominal-item {
-      text-align: center;
-      padding: 8px;
-      background: var(--bg2);
-      border-radius: 8px;
-    }
-    .reward-nominal-val { font-size: 14px; font-weight: 700; color: var(--blue); }
-    .reward-nominal-lbl { font-size: 10px; color: var(--text2); margin-top: 1px; }
+    .badge-progress { background: var(--blue-l); color: var(--blue); }
 
-    /* ---- RIWAYAT TRANSAKSI ---- */
+    /* ── TRX ITEM ── */
     .trx-item {
-      border: 0.5px solid var(--border);
+      border: 1px solid var(--border);
       border-radius: 10px;
       overflow: hidden;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .trx-item:last-child { margin-bottom: 0; }
     .trx-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 12px;
-      background: var(--bg2);
+      padding: 9px 12px;
+      background: var(--bg);
       cursor: pointer;
-      gap: 10px;
+      gap: 8px;
+      transition: background .1s;
     }
-    .trx-kode { font-size: 12px; font-weight: 600; }
-    .trx-meta { font-size: 11px; color: var(--text2); margin-top: 1px; }
+    .trx-head:active { background: var(--blue-ll); }
+    .trx-kode { font-size: 12px; font-weight: 600; color: var(--text); }
+    .trx-meta { font-size: 10px; color: var(--text2); margin-top: 1px; }
     .trx-right { text-align: right; flex-shrink: 0; }
     .trx-total { font-size: 13px; font-weight: 700; color: var(--teal); }
-    .trx-stamp { font-size: 11px; color: var(--amber); }
+    .trx-stamp-lbl { font-size: 10px; color: var(--amber); font-weight: 600; }
     .trx-body { padding: 10px 12px; display: none; }
-    .trx-row {
+    .trx-detail-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      font-size: 12px;
+      font-size: 11px;
       padding: 5px 0;
-      border-bottom: 0.5px solid var(--border);
+      border-bottom: 1px solid var(--border);
       gap: 8px;
+      color: var(--text2);
     }
-    .trx-row:last-child { border-bottom: none; }
-    .trx-row-nama { color: var(--text); }
-    .trx-row-nominal { font-weight: 500; color: var(--text2); white-space: nowrap; }
-    .trx-stamp-badge {
-      font-size: 10px;
-      background: var(--amber-m);
-      color: #7a4f00;
-      padding: 1px 6px;
-      border-radius: 99px;
-      margin-left: 4px;
-    }
+    .trx-detail-row:last-child { border-bottom: none; }
+    .trx-detail-nama { color: var(--text); font-weight: 500; }
 
-    /* ---- QR CODE ---- */
-    .qr-section { text-align: center; }
-    .qr-wrap {
-      display: inline-block;
-      background: #fff;
-      padding: 14px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      margin: 10px auto;
+    /* ── PROFIL ── */
+    .profil-avatar-wrap {
+      text-align: center;
+      padding: 20px 0 14px;
     }
-    .qr-code-text {
+    .profil-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--pink) 100%);
+      color: #fff;
+      font-size: 28px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .profil-nama {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .profil-cabang {
       font-size: 12px;
       color: var(--text2);
-      font-family: monospace;
-      letter-spacing: 1px;
-      margin-top: 6px;
     }
-    .qr-hint { font-size: 12px; color: var(--text2); margin-top: 8px; line-height: 1.5; }
-
-    /* ---- INFO MEMBER ---- */
     .info-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 9px 0;
-      border-bottom: 0.5px solid var(--border);
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
       font-size: 13px;
       gap: 10px;
     }
     .info-row:last-child { border-bottom: none; }
-    .info-label { color: var(--text2); flex-shrink: 0; }
-    .info-value { font-weight: 500; text-align: right; }
+    .info-label { color: var(--text2); font-size: 12px; flex-shrink: 0; }
+    .info-value { font-weight: 600; text-align: right; color: var(--text); }
 
-    /* ---- LOADING / EMPTY ---- */
+    /* ── STAT ROW ── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-val {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 3px;
+    }
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--text2);
+    }
+
+    /* ── LOADING / EMPTY ── */
     .loading {
       text-align: center;
-      padding: 32px;
+      padding: 40px 20px;
       color: var(--text2);
       font-size: 13px;
     }
-    .loading::before {
-      content: '';
-      display: block;
+    .loading-spinner {
       width: 28px;
       height: 28px;
       border: 2.5px solid var(--border);
       border-top-color: var(--blue);
       border-radius: 50%;
       animation: spin .7s linear infinite;
-      margin: 0 auto 10px;
+      margin: 0 auto 12px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .empty {
       text-align: center;
-      padding: 24px;
+      padding: 32px 20px;
       color: var(--text2);
       font-size: 13px;
     }
+    .empty-icon { font-size: 32px; margin-bottom: 8px; }
 
-    /* ---- SECTION TITLE ---- */
+    /* ── SECTION TITLE ── */
     .section-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text2);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
       text-transform: uppercase;
-      letter-spacing: .5px;
-      margin: 20px 0 10px;
+      letter-spacing: .7px;
+      margin: 4px 0 10px;
     }
 
-    /* ---- CHEVRON ---- */
+    /* ── CHEVRON ── */
     .chevron {
-      width: 16px;
-      height: 16px;
-      transition: transform .2s;
-      color: var(--text2);
+      width: 15px;
+      height: 15px;
+      color: var(--text3);
       flex-shrink: 0;
+      transition: transform .2s;
     }
     .chevron.open { transform: rotate(180deg); }
+
+    /* ── TAB CONTENT ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp .3s ease both; }
+    .fade-up-1 { animation-delay: .05s; }
+    .fade-up-2 { animation-delay: .10s; }
+    .fade-up-3 { animation-delay: .15s; }
   </style>
 </head>
 <body>
 
-<!-- ================================================
+<!-- ══════════════════════════════
      LOGIN SCREEN
-     ================================================ -->
+     ══════════════════════════════ -->
 <div id="screen-login" class="login-wrap">
-  <img src="assets/logo.png" alt="MW" class="login-logo"/>
-  <div class="login-title">Member Portal</div>
-  <div class="login-sub">Mekar Wangi Indonesia<br/>Lihat poin stamp & reward kamu</div>
-
   <div class="login-card">
-    <label for="input-hp">Nomor HP Terdaftar</label>
-    <input type="tel" id="input-hp" placeholder="Contoh: 08123456789"
+    <div class="login-logo-wrap">
+      <img src="assets/logo.png" alt="MW"/>
+      <div class="login-title">Mekar Wangi</div>
+      <div class="login-sub">Masuk ke portal member kamu</div>
+    </div>
+    <label class="login-label" for="input-hp">Nomor HP Terdaftar</label>
+    <input type="tel" id="input-hp" class="login-input"
+      placeholder="Contoh: 08123456789"
       inputmode="numeric" autocomplete="tel"
       onkeydown="if(event.key==='Enter') doLogin()"/>
     <button class="btn-login" id="btn-login" onclick="doLogin()">Masuk</button>
@@ -478,61 +761,116 @@ session_start();
   </div>
 </div>
 
-<!-- ================================================
+<!-- ══════════════════════════════
      PORTAL SCREEN
-     ================================================ -->
+     ══════════════════════════════ -->
 <div id="screen-portal" style="display:none">
 
   <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-brand">
       <img src="assets/logo.png" alt="MW"/>
-      <span>Member Portal</span>
+      <span>Mekar Wangi</span>
     </div>
     <div class="topbar-right">
-      <div class="member-avatar" id="portal-avatar">?</div>
+      <div class="member-chip">
+        <div class="member-avatar" id="portal-avatar">?</div>
+        <span class="member-chip-name" id="portal-nama-chip">-</span>
+      </div>
       <button class="btn-logout" onclick="doLogout()">Keluar</button>
     </div>
   </div>
 
-  <!-- Content -->
-  <div class="page" id="portal-content">
-    <div class="loading">Memuat data...</div>
+  <!-- Scroll area -->
+  <div class="page-wrap">
+    <div class="page">
+
+      <!-- TAB: BERANDA -->
+      <div id="tab-beranda" class="tab-content active">
+        <div id="beranda-content">
+          <div class="loading">
+            <div class="loading-spinner"></div>
+            Memuat data...
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: RIWAYAT -->
+      <div id="tab-riwayat" class="tab-content">
+        <div id="riwayat-content">
+          <div class="loading">
+            <div class="loading-spinner"></div>
+            Memuat riwayat...
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: PROFIL -->
+      <div id="tab-profil" class="tab-content">
+        <div id="profil-content">
+          <div class="loading">
+            <div class="loading-spinner"></div>
+            Memuat profil...
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="nav-beranda" onclick="switchTab('beranda')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Beranda</span>
+    </button>
+    <button class="nav-btn" id="nav-riwayat" onclick="switchTab('riwayat')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+      <span>Riwayat</span>
+    </button>
+    <button class="nav-btn" id="nav-profil" onclick="switchTab('profil')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>Profil</span>
+    </button>
+  </nav>
 
 </div>
 
 <script>
-// ================================================
-// CONFIG
-// ================================================
 const BASE_URL = (() => {
   const p = window.location.pathname;
   return p.substring(0, p.lastIndexOf('/'));
 })();
 const API = BASE_URL + '/api/member_portal.php';
 
-// ================================================
+let portalData = null;
+let activeTab  = 'beranda';
+let qrGenerated = false;
+
+// ══════════════════════════════
 // INIT
-// ================================================
+// ══════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  // Cek session
   try {
-    const res = await fetch(`${API}?action=check_session`);
+    const res  = await fetch(`${API}?action=check_session`);
     const data = await res.json();
-    if (data.logged_in) {
-      showPortal(data.member);
-    } else {
-      showLogin();
-    }
-  } catch(e) {
-    showLogin();
-  }
+    if (data.logged_in) showPortal(data.member);
+    else showLogin();
+  } catch(e) { showLogin(); }
 });
 
-// ================================================
-// LOGIN
-// ================================================
+// ══════════════════════════════
+// LOGIN / LOGOUT
+// ══════════════════════════════
 function showLogin() {
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('screen-portal').style.display = 'none';
@@ -540,20 +878,17 @@ function showLogin() {
 }
 
 async function doLogin() {
-  const no_hp  = document.getElementById('input-hp').value.trim();
-  const errEl  = document.getElementById('login-err');
-  const btnEl  = document.getElementById('btn-login');
-
+  const no_hp = document.getElementById('input-hp').value.trim();
+  const errEl = document.getElementById('login-err');
+  const btnEl = document.getElementById('btn-login');
   errEl.style.display = 'none';
   if (!no_hp) {
     errEl.textContent = 'Masukkan nomor HP terlebih dahulu';
     errEl.style.display = 'block';
     return;
   }
-
-  btnEl.disabled    = true;
+  btnEl.disabled = true;
   btnEl.textContent = 'Memuat...';
-
   try {
     const res  = await fetch(API, {
       method: 'POST',
@@ -561,12 +896,10 @@ async function doLogin() {
       body: JSON.stringify({ action: 'login', no_hp }),
     });
     const data = await res.json();
-
-    if (data.success) {
-      showPortal(data.member);
-    } else {
-      errEl.textContent    = data.message || 'No HP tidak terdaftar';
-      errEl.style.display  = 'block';
+    if (data.success) showPortal(data.member);
+    else {
+      errEl.textContent   = data.message || 'No HP tidak terdaftar';
+      errEl.style.display = 'block';
     }
   } catch(e) {
     errEl.textContent   = 'Gagal terhubung ke server';
@@ -577,525 +910,403 @@ async function doLogin() {
   }
 }
 
-// ================================================
-// LOGOUT
-// ================================================
 async function doLogout() {
   await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'logout' }),
   });
+  portalData  = null;
+  qrGenerated = false;
   showLogin();
 }
 
-// ================================================
+// ══════════════════════════════
 // PORTAL
-// ================================================
+// ══════════════════════════════
 function showPortal(member) {
   document.getElementById('screen-login').style.display  = 'none';
   document.getElementById('screen-portal').style.display = 'block';
-
-  // Avatar inisial
-  const av = document.getElementById('portal-avatar');
-  if (av) av.textContent = member.nama.charAt(0).toUpperCase();
-
+  document.getElementById('portal-avatar').textContent    = member.nama.charAt(0).toUpperCase();
+  document.getElementById('portal-nama-chip').textContent = member.nama.split(' ')[0];
   loadPortalData();
 }
 
 async function loadPortalData() {
-  const content = document.getElementById('portal-content');
-  content.innerHTML = '<div class="loading">Memuat data...</div>';
-
   try {
     const res  = await fetch(`${API}?action=my_data`);
     const data = await res.json();
-
     if (!data.success) {
       if (res.status === 401) { showLogin(); return; }
-      content.innerHTML = '<div class="empty">Gagal memuat data</div>';
       return;
     }
-
-    renderPortal(data);
+    portalData = data;
+    renderBeranda();
+    // Pre-render tab lain di background
+    renderRiwayat();
+    renderProfil();
   } catch(e) {
-    content.innerHTML = '<div class="empty">Gagal terhubung ke server</div>';
+    document.getElementById('beranda-content').innerHTML =
+      '<div class="empty"><div class="empty-icon">⚠️</div>Gagal memuat data</div>';
   }
 }
 
-// ================================================
-// RENDER
-// ================================================
-function renderPortal(data) {
-  const { member, rewards, riwayat, stats } = data;
-  const content = document.getElementById('portal-content');
-
-  content.innerHTML = `
-    ${renderHero(member, stats, rewards.filter(r => r.status === 'redeemed').length)}
-    ${renderRewards(rewards)}
-    ${renderQR(member)}
-    ${renderRiwayat(riwayat, rewards)}  
-    ${renderInfoMember(member)}
-  `;
-
-  generateQR('portal-qr-wrap', member.qr_code);
-
-
+// ══════════════════════════════
+// TAB SWITCH
+// ══════════════════════════════
+function switchTab(name) {
+  activeTab = name;
+  ['beranda','riwayat','profil'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('nav-' + t).classList.toggle('active', t === name);
+  });
+  // Scroll ke atas saat ganti tab
+  document.querySelector('.page-wrap').scrollTop = 0;
 }
 
-// ---- Hero ----
-function renderHero(member, stats, rewardPending) {
-  const stampMod = member.stamp_available % 10;
-  const pct      = (stampMod / 10) * 100;
-  return `
-    <div class="hero">
-      <div class="hero-greeting">Selamat datang 👋</div>
-      <div class="hero-nama">${esc(member.nama)}</div>
-
-      <!-- Progress utama -->
-      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:12px;opacity:.85">Menuju reward berikutnya</span>
-          <span style="font-size:20px;font-weight:700;color:#fde9ba">${stampMod}/10</span>
-        </div>
-        <div style="height:8px;background:rgba(255,255,255,0.2);border-radius:99px;overflow:hidden;margin-bottom:6px">
-          <div style="height:100%;background:#fde9ba;border-radius:99px;width:${pct}%"></div>
-        </div>
-        <div style="font-size:11px;opacity:.7">${10 - stampMod} stamp lagi untuk dapat reward</div>
-      </div>
-
-      <!-- Info sekunder -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
-          <div style="font-size:16px;font-weight:700">${member.total_stamp}</div>
-          <div style="font-size:10px;opacity:.75">Total sejak daftar</div>
-        </div>
-        <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
-          <div style="font-size:16px;font-weight:700;color:${rewardPending > 0 ? '#fde9ba' : '#fff'}">${rewardPending}</div>
-          <div style="font-size:10px;opacity:.75">Reward tersedia 🎁</div>
-        </div>
-      </div>
-    </div>`;
-}
-
-// ---- Stamp Progress ----
-function renderStampProgress(member) {
+// ══════════════════════════════
+// RENDER — BERANDA
+// ══════════════════════════════
+function renderBeranda() {
+  if (!portalData) return;
+  const { member, rewards } = portalData;
   const stampMod   = member.stamp_available % 10;
+  const pct        = (stampMod / 10) * 100;
   const sisaStamp  = 10 - stampMod;
+  const rewardList = rewards.filter(r => r.status === 'redeemed').slice(0, 3);
 
-  // Render 10 kotak stamp
-  let boxes = '';
+  // Stamp grid 10 kotak
+  let stampsHTML = '';
   for (let i = 1; i <= 10; i++) {
     const filled = i <= stampMod;
-    boxes += `
+    stampsHTML += `
       <div class="stamp-box ${filled ? 'filled' : ''}">
-        ${filled
-          ? `<span class="stamp-icon">🎫</span>`
-          : `<span style="font-size:16px;opacity:.2">○</span>`}
+        ${filled ? '<span class="stamp-emoji">🎫</span>' : '<span style="font-size:14px;color:var(--border)">○</span>'}
         <span class="stamp-num">${i}</span>
       </div>`;
   }
 
-  const msg = stampMod === 0
+  // Progress pesan
+  const progressMsg = stampMod === 0
     ? 'Kumpulkan 10 stamp untuk dapat reward!'
     : sisaStamp === 1
-    ? '<strong>1 stamp lagi</strong> untuk dapat reward! 🎉'
-    : `<strong>${sisaStamp} stamp lagi</strong> menuju reward berikutnya`;
+    ? '<strong style="color:var(--blue)">1 stamp lagi</strong> untuk dapat reward! 🎉'
+    : `<strong style="color:var(--blue)">${sisaStamp} stamp lagi</strong> menuju reward`;
 
-  return `
-    <div class="card">
+  // Reward terakhir
+  const rewardHTML = rewardList.length
+    ? rewardList.map((r, idx) => {
+        const nomorReward = Math.floor(parseInt(r.stamp_snapshot) / 10);
+        const tgl = new Date(r.created_at).toLocaleDateString('id-ID', {
+          day: 'numeric', month: 'short', year: 'numeric'
+        });
+        return `
+          <div class="reward-item">
+            <div class="reward-icon">🎁</div>
+            <div class="reward-info">
+              <div class="reward-name">${esc(r.keterangan_redeem || r.bibit_nama || '-')}</div>
+              <div class="reward-date">Reward ke-${nomorReward} · ${tgl}</div>
+            </div>
+            <div class="reward-nominal">
+              <div class="reward-nominal-val">Rp ${parseFloat(r.rata_nominal||0).toLocaleString('id-ID')}</div>
+              <div class="reward-nominal-lbl">rata-rata/stamp</div>
+            </div>
+          </div>`;
+      }).join('')
+    : '<div class="empty" style="padding:16px 0"><div class="empty-icon">🎫</div>Belum ada reward. Kumpulkan 10 stamp!</div>';
+
+  document.getElementById('beranda-content').innerHTML = `
+    <!-- QR Hero -->
+    <div class="qr-hero fade-up">
+      <div class="qr-hero-label">Member Card</div>
+      <div class="qr-hero-name">${esc(member.nama)}</div>
+      <div class="qr-box-wrap">
+        <div class="qr-box" id="portal-qr-wrap"></div>
+        <div class="qr-info">
+          <div class="qr-info-hint">Tunjukkan QR ini ke kasir saat belanja agar stamp kamu tercatat</div>
+          <div class="qr-code-text">${esc(member.qr_code)}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stamp Progress -->
+    <div class="stamp-card fade-up fade-up-1">
       <div class="stamp-header">
-        <div class="stamp-title">Progress Stamp</div>
-        <div class="stamp-count">${stampMod}/10</div>
+        <div class="stamp-header-left">Progress Reward</div>
+        <div class="stamp-count-badge">${stampMod}/10</div>
       </div>
-      <div class="stamp-grid">${boxes}</div>
-      <div class="stamp-progress-info">${msg}</div>
-    </div>`;
-}
-
-// ---- Rewards ----
-function renderRewards(rewards) {
-  if (!rewards.length) {
-    return `
-      <div class="section-title">Reward</div>
-      <div class="card">
-        <div class="empty" style="padding:16px">Belum ada reward. Kumpulkan 10 stamp untuk mendapatkan reward!</div>
-      </div>`;
-  }
-
-  const items = rewards.map((r, idx) => {
-    const nomorReward = Math.floor(parseInt(r.stamp_snapshot) / 10);
-    const statusBadge =
-      r.status === 'pending'
-        ? `<span class="badge badge-pending">🎁 Bisa Ditukar</span>`
-        : r.status === 'redeemed'
-        ? `<span class="badge badge-redeemed">✓ Sudah Ditukar</span>`
-        : `<span class="badge badge-cancelled">Dibatalkan</span>`;
-
-    const tgl = new Date(r.created_at).toLocaleDateString('id-ID', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-
-    const redeemInfo = r.status === 'redeemed' && r.bibit_nama
-      ? `<div style="margin-top:8px;padding:8px 10px;background:var(--teal-l);border-radius:8px;font-size:12px;color:var(--teal)">
-           Ditukar dengan: <strong>${esc(r.bibit_nama)}</strong>
-           ${r.redeemed_by_nama ? ' · oleh ' + esc(r.redeemed_by_nama) : ''}
-         </div>`
-      : '';
-
-    const pendingInfo = r.status === 'pending'
-      ? `<div style="margin-top:8px;padding:8px 10px;background:var(--amber-m);border-radius:8px;font-size:12px;color:#7a4f00">
-           Tunjukkan halaman ini ke kasir untuk menukar reward kamu! 😊
-         </div>`
-      : '';
-
-    return `
-      <div class="reward-item">
-        <div class="reward-head">
-          <div>
-            <div class="reward-title">Reward ke-${nomorReward}</div>
-            <div class="reward-date">${tgl}</div>
-          </div>
-          ${statusBadge}
-        </div>
-        <div class="reward-nominal">
-          <div class="reward-nominal-item">
-            <div class="reward-nominal-val">Rp ${parseFloat(r.rata_nominal || 0).toLocaleString('id-ID')}</div>
-            <div class="reward-nominal-lbl">Rata-rata / stamp</div>
-          </div>
-          <div class="reward-nominal-item">
-            <div class="reward-nominal-val">Rp ${parseFloat(r.total_nominal || 0).toLocaleString('id-ID')}</div>
-            <div class="reward-nominal-lbl">Total 10 stamp</div>
-          </div>
-        </div>
-        ${pendingInfo}
-        ${redeemInfo}
-      </div>`;
-  }).join('');
-
-  return `
-    <div class="section-title">Reward Kamu</div>
-    <div class="card">${items}</div>`;
-}
-
-// ---- QR Code ----
-function renderQR(member) {
-  return `
-    <div class="section-title">QR Code Member</div>
-    <div class="card">
-      <div class="qr-section">
-        <div class="qr-wrap" id="portal-qr-wrap"></div>
-        <div class="qr-code-text">${esc(member.qr_code)}</div>
-        <div class="qr-hint">
-          Tunjukkan QR ini ke kasir saat belanja<br/>agar stamp kamu tercatat otomatis
-        </div>
+      <div class="stamp-grid">${stampsHTML}</div>
+      <div class="stamp-bar-wrap">
+        <div class="stamp-bar-fill" style="width:${pct}%"></div>
       </div>
+      <div class="stamp-bar-info">
+        <span>${progressMsg}</span>
+      </div>
+      <div class="stamp-total-row">
+        <span>Total stamp sejak daftar:</span>
+        <span class="stamp-total-val">${member.total_stamp}</span>
+      </div>
+    </div>
+
+    <!-- Reward Terakhir -->
+    <div class="section-title fade-up fade-up-2">Reward Terakhir</div>
+    <div class="card fade-up fade-up-3" style="padding:12px">
+      ${rewardHTML}
+      ${rewardList.length && rewards.filter(r=>r.status==='redeemed').length > 3
+        ? `<button onclick="switchTab('riwayat')"
+            style="width:100%;margin-top:10px;padding:9px;border:1.5px solid var(--border);
+            border-radius:10px;background:none;font-size:13px;color:var(--blue);
+            font-weight:600;cursor:pointer;font-family:inherit">
+            Lihat semua riwayat →
+          </button>`
+        : ''}
     </div>`;
+
+  generateQR('portal-qr-wrap', member.qr_code);
 }
 
-// ---- Riwayat Transaksi ----
-function renderRiwayat(riwayat, rewards) {
+// ══════════════════════════════
+// RENDER — RIWAYAT
+// ══════════════════════════════
+function renderRiwayat() {
+  if (!portalData) return;
+  const { riwayat, rewards } = portalData;
+
   if (!riwayat.length) {
-    return `
-      <div class="section-title">Riwayat Transaksi</div>
-      <div class="card"><div class="empty" style="padding:16px">Belum ada transaksi</div></div>`;
+    document.getElementById('riwayat-content').innerHTML =
+      '<div class="empty"><div class="empty-icon">📋</div>Belum ada transaksi</div>';
+    return;
   }
 
-  // Kelompokkan per siklus — transaksi lintas siklus masuk ke SEMUA siklus yang dilintasi
+  // Kelompokkan per siklus
   const siklus = {};
   riwayat.forEach(t => {
     const stampMin = parseInt(t.stamp_ke_min || 0);
     const stampMax = parseInt(t.stamp_ke_max || 0);
-
     if (stampMin === 0 && stampMax === 0) {
       if (!siklus['0']) siklus['0'] = { trxs: [] };
       siklus['0'].trxs.push(t);
       return;
     }
-
     const siklusMin = Math.ceil(stampMin / 10);
     const siklusMax = Math.ceil(stampMax / 10);
-
     for (let n = siklusMin; n <= siklusMax; n++) {
-      if (!siklus[n]) {
-        siklus[n] = {
-          nomor:      n,
-          stamp_dari: (n - 1) * 10 + 1,
-          stamp_ke:   n * 10,
-          trxs:       [],
-        };
-      }
-      if (!siklus[n].trxs.find(x => x.id === t.id)) {
-        siklus[n].trxs.push(t);
-      }
+      if (!siklus[n]) siklus[n] = { nomor: n, stamp_dari: (n-1)*10+1, stamp_ke: n*10, trxs: [] };
+      if (!siklus[n].trxs.find(x => x.id === t.id)) siklus[n].trxs.push(t);
     }
   });
 
-  const sortedSiklus = Object.values(siklus)
-    .filter(s => s.nomor)
-    .sort((a, b) => b.nomor - a.nomor);
-
-  const rewardTrxs = siklus['0']?.trxs.filter(t => t.kode_nota.startsWith('REWARD-')) || [];
+  const sortedSiklus = Object.values(siklus).filter(s => s.nomor).sort((a,b) => b.nomor - a.nomor);
+  const rewardTrxs  = siklus['0']?.trxs.filter(t => t.kode_nota.startsWith('REWARD-')) || [];
 
   const cards = sortedSiklus.map(s => {
     const reward = rewards.find(r => parseInt(r.stamp_snapshot) === s.stamp_ke);
-
     const allStampKe = [];
     s.trxs.forEach(t => {
       const min = parseInt(t.stamp_ke_min || 0);
       const max = parseInt(t.stamp_ke_max || 0);
       for (let i = min; i <= max; i++) allStampKe.push(i);
     });
-    const stampDiSiklus = [...new Set(allStampKe)].filter(
-      k => k >= s.stamp_dari && k <= s.stamp_ke
-    ).length;
-    const isComplete = stampDiSiklus >= 10;
+    const stampDiSiklus = [...new Set(allStampKe)].filter(k => k >= s.stamp_dari && k <= s.stamp_ke).length;
+    const isComplete    = stampDiSiklus >= 10;
+    const isRedeemed    = reward?.status === 'redeemed';
 
-    let headerBg, headerColor, statusLabel;
-    if (reward?.status === 'redeemed') {
-      headerBg    = 'var(--teal-l)';
-      headerColor = 'var(--teal)';
-      statusLabel = `<span style="font-size:11px;background:var(--teal-l);color:var(--teal);padding:2px 8px;border-radius:99px;font-weight:600;border:0.5px solid #9fe1cb">✓ Reward Ditukar</span>`;
-    } else if (reward?.status === 'pending') {
-      headerBg    = '#fffbe6';
-      headerColor = '#7a4f00';
-      statusLabel = `<span style="font-size:11px;background:var(--amber-m);color:#7a4f00;padding:2px 8px;border-radius:99px;font-weight:600">🎁 Reward Tersedia!</span>`;
-    } else if (isComplete) {
-      headerBg    = 'var(--blue-l)';
-      headerColor = 'var(--blue)';
-      statusLabel = `<span style="font-size:11px;background:var(--blue-l);color:var(--blue);padding:2px 8px;border-radius:99px;font-weight:600">✓ Lengkap</span>`;
-    } else {
-      headerBg    = 'var(--bg2)';
-      headerColor = 'var(--text)';
-      statusLabel = `<span style="font-size:11px;background:var(--bg2);color:var(--text2);padding:2px 8px;border-radius:99px;font-weight:600;border:0.5px solid var(--border)">${stampDiSiklus}/10 stamp</span>`;
-    }
-
+    // Mini grid
     let miniGrid = '';
     for (let i = 1; i <= 10; i++) {
-      const globalKe = s.stamp_dari + i - 1;
-      const filled   = allStampKe.includes(globalKe);
-      miniGrid += `<div style="width:100%;aspect-ratio:1;border-radius:6px;
-        background:${filled ? 'var(--amber)' : 'var(--bg)'};
-        border:1px solid ${filled ? 'var(--amber)' : 'var(--border)'};
-        display:flex;align-items:center;justify-content:center;font-size:10px">
-        ${filled ? '🎫' : ''}
-      </div>`;
+      const filled = allStampKe.includes(s.stamp_dari + i - 1);
+      miniGrid += `<div class="siklus-dot ${filled ? 'filled' : ''}"></div>`;
     }
 
-    const rewardInfo = reward
-      ? reward.status === 'pending'
-        ? `<div style="margin-top:10px;padding:10px 12px;background:var(--amber-m);
-            border-radius:8px;font-size:12px;color:#7a4f00;text-align:center">
-            🎁 Kamu punya reward! Tunjukkan halaman ini ke kasir untuk menukarnya.
-          </div>`
-        : reward.status === 'redeemed'
-        ? `<div style="margin-top:10px;padding:10px 12px;background:var(--teal-l);
-            border-radius:8px;font-size:12px;color:var(--teal)">
-            ✓ Reward sudah ditukar dengan <strong>${esc(reward.bibit_nama || '-')}</strong>
-          </div>`
-        : ''
+    // Badge
+    const badge = isRedeemed
+      ? `<span class="badge badge-redeemed">✓ Reward ditukar</span>`
+      : isComplete
+      ? `<span class="badge badge-progress">✓ Lengkap</span>`
+      : `<span class="badge badge-progress">${stampDiSiklus}/10</span>`;
+
+    // Header bg
+    const headerBg = isRedeemed ? 'var(--teal-l)' : isComplete ? 'var(--blue-l)' : 'var(--bg)';
+
+    // Reward info
+    const rewardInfo = isRedeemed
+      ? `<div style="margin-top:8px;padding:8px 10px;background:var(--teal-l);border-radius:8px;
+          font-size:12px;color:var(--teal);font-weight:500">
+          ✓ Ditukar: <strong>${esc(reward.keterangan_redeem || reward.bibit_nama || '-')}</strong>
+        </div>`
       : '';
 
+    // Transaksi rows
     const trxRows = s.trxs.map(t => {
-      const tgl        = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
-      const jam        = t.created_at.split(' ')[1]?.substring(0, 5) || '';
-      const isReward   = t.kode_nota.startsWith('REWARD-');
+      const tgl      = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short' });
+      const jam      = t.created_at.split(' ')[1]?.substring(0,5) || '';
+      const isReward = t.kode_nota.startsWith('REWARD-');
       const stampCount = parseInt(t.stamp_didapat || 0);
-      const itemsPerReward = t.items_per_reward || {};
 
-      // Hitung nominal hanya untuk stamp yang masuk siklus ini
+      // Hitung nominal siklus ini
       const nominalSiklus = (() => {
         let total = 0;
-        Object.values(itemsPerReward).forEach(groupItems => {
+        Object.values(t.items_per_reward || {}).forEach(groupItems => {
           groupItems.forEach(item => {
             const stampKe = parseInt(item.stamp_ke || 0);
-            if (stampKe >= s.stamp_dari && stampKe <= s.stamp_ke) {
-              total += parseFloat(item.subtotal || 0);
-            }
+            if (stampKe >= s.stamp_dari && stampKe <= s.stamp_ke) total += parseFloat(item.subtotal || 0);
           });
         });
         return total;
       })();
 
-      const rewardGroups = Object.keys(itemsPerReward);
-
-      const groupedHTML = rewardGroups.map(groupKey => {
-        const groupItems    = itemsPerReward[groupKey];
-        const isProgress    = groupKey === 'progress';
-
-        const filteredItems = groupItems.filter(item => {
-          const stampKe = parseInt(item.stamp_ke || 0);
-          return stampKe >= s.stamp_dari && stampKe <= s.stamp_ke;
-        });
-        if (!filteredItems.length) return '';
-
-        const groupLabel = isProgress
-          ? `<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>`
-          : '';
-
-        const itemRows = filteredItems.map(item => {
-          if (item.is_mix) {
-            return `
-              <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
-                <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
-                <div style="display:flex;justify-content:space-between">
-                  <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(' + ') : ''}</div>
-                  <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}</div>
-                </div>
-              </div>`;
-          } else {
-            return `
-              <div style="display:flex;justify-content:space-between;align-items:center;
-                padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? 'var(--blue)' : 'var(--teal)'};
-                margin:3px 0;gap:8px">
-                <div>
-                  <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)}
-                    <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span>
-                  </div>
-                  <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
-                </div>
-                <div style="font-size:11px;font-weight:600;white-space:nowrap">
-                  Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}
-                </div>
-              </div>`;
-          }
-        }).join('');
-
-        return `
-          <div style="margin-bottom:6px">
-            ${groupLabel}
-            ${itemRows}
-          </div>`;
-      }).filter(Boolean).join('<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>');
-
       return `
-        <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;
-            padding:8px 10px;background:var(--bg2);gap:8px;cursor:pointer"
-            onclick="toggleTrxDetail('ptd-${s.nomor}-${t.id}', this)">
+        <div class="trx-item">
+          <div class="trx-head" onclick="toggleTrxDetail('ptd-${s.nomor}-${t.id}','pchv-${s.nomor}-${t.id}')">
             <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
-              <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
+              <div class="trx-kode">${esc(t.kode_nota)}</div>
+              <div class="trx-meta">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
             </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:12px;font-weight:700;color:${isReward ? 'var(--amber)' : 'var(--teal)'}">
+            <div class="trx-right">
+              <div class="trx-total" style="color:${isReward ? 'var(--pink)' : 'var(--teal)'}">
                 ${isReward ? '🎁 Reward' : 'Rp ' + nominalSiklus.toLocaleString('id-ID')}
               </div>
-              ${stampCount > 0 ? `<div style="font-size:10px;color:var(--amber)">+${stampCount} 🎫</div>` : ''}
+              ${stampCount > 0 ? `<div class="trx-stamp-lbl">+${stampCount} 🎫</div>` : ''}
             </div>
-            <svg id="pchv-${s.nomor}-${t.id}"
-              style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <svg id="pchv-${s.nomor}-${t.id}" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="m6 9 6 6 6-6"/>
             </svg>
           </div>
-          <div id="ptd-${s.nomor}-${t.id}" style="display:none;padding:8px 10px">
-            ${groupedHTML || '<div style="font-size:11px;color:var(--text2)">-</div>'}
+          <div id="ptd-${s.nomor}-${t.id}" class="trx-body">
+            ${renderTrxDetail(t, s)}
           </div>
         </div>`;
     }).join('');
 
     return `
-      <div style="background:var(--card);border:0.5px solid var(--border);
-        border-radius:14px;margin-bottom:14px;overflow:hidden">
-        <div style="padding:12px 14px;background:${headerBg};border-bottom:0.5px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px">
-            <div style="font-size:14px;font-weight:700;color:${headerColor}">
-              Siklus ${s.nomor}
+      <div class="siklus-card">
+        <div class="siklus-header" style="background:${headerBg}">
+          <div class="siklus-header-row">
+            <div class="siklus-title">Siklus ${s.nomor}
               <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:4px">
                 (stamp ${s.stamp_dari}–${s.stamp_ke})
               </span>
             </div>
-            ${statusLabel}
+            ${badge}
           </div>
-          <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">${miniGrid}</div>
+          <div class="siklus-mini-grid">${miniGrid}</div>
           ${rewardInfo}
         </div>
-        <div style="padding:10px 12px">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);
-            text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
-            ${s.trxs.length} Transaksi
-          </div>
+        <div class="siklus-body">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+            letter-spacing:.5px;margin-bottom:8px">${s.trxs.length} Transaksi</div>
           ${trxRows}
         </div>
       </div>`;
   }).join('');
 
-  const rewardTrxCard = rewardTrxs.length
-    ? `<div style="background:var(--card);border:0.5px solid var(--border);
-        border-radius:14px;margin-bottom:14px;overflow:hidden">
-        <div style="padding:10px 14px;background:var(--teal-l);border-bottom:0.5px solid var(--border);
-          display:flex;align-items:center;gap:8px">
-          <span style="font-size:16px">🎁</span>
-          <div>
-            <div style="font-size:13px;font-weight:600;color:var(--teal)">Riwayat Penukaran Reward</div>
-            <div style="font-size:11px;color:var(--teal);opacity:.7;margin-top:1px">${rewardTrxs.length} penukaran</div>
-          </div>
-        </div>
-        <div style="padding:10px 12px">
-          ${rewardTrxs.map(t => {
-            const tgl = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
-            const jam = t.created_at.split(' ')[1]?.substring(0, 5) || '';
-const detailRows = (t.items || []).map(item => `
-  <div style="display:flex;justify-content:space-between;align-items:center;
-    font-size:11px;padding:6px 0;border-bottom:0.5px solid var(--border);gap:8px">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:12px;font-weight:500">${esc(item.bibit_nama)}</div>
-      <div style="font-size:10px;color:var(--text2);margin-top:1px">
-        ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)} · Gratis 🎁
+  // Reward trx card
+  const rewardTrxCard = rewardTrxs.length ? `
+    <div class="siklus-card">
+      <div class="siklus-header" style="background:var(--pink-l)">
+        <div class="siklus-title" style="color:var(--pink)">🎁 Riwayat Penukaran Reward</div>
       </div>
-    </div>
-    <span style="font-size:12px;font-weight:700;color:var(--teal);white-space:nowrap">Gratis</span>
-  </div>`).join('');
-            return `
-              <div style="border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden">
-                <div style="display:flex;align-items:center;justify-content:space-between;
-                  padding:8px 10px;background:var(--bg2);cursor:pointer;gap:8px"
-                  onclick="toggleTrxDetail('ptd-reward-${t.id}', this)">
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:12px;font-weight:600">${esc(t.kode_nota)}</div>
-                    <div style="font-size:10px;color:var(--text2)">${tgl} · ${jam} · ${esc(t.cabang_nama)}</div>
-                  </div>
-                  <div style="font-size:12px;font-weight:700;color:var(--amber)">🎁 Reward Ditukar</div>
-                  <svg id="pchv-reward-${t.id}"
-                    style="width:14px;height:14px;flex-shrink:0;transition:transform .2s;color:var(--text2)"
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="m6 9 6 6 6-6"/>
-                  </svg>
+      <div class="siklus-body">
+        ${rewardTrxs.map(t => {
+          const tgl = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+          return `
+            <div class="trx-item">
+              <div class="trx-head" onclick="toggleTrxDetail('ptd-r-${t.id}','pchv-r-${t.id}')">
+                <div style="flex:1;min-width:0">
+                  <div class="trx-kode">${esc(t.kode_nota)}</div>
+                  <div class="trx-meta">${tgl} · ${esc(t.cabang_nama)}</div>
                 </div>
-                <div id="ptd-reward-${t.id}" style="display:none;padding:8px 10px">
-                  ${detailRows || '<div style="font-size:11px;color:var(--text2)">-</div>'}
+                <div class="trx-right">
+                  <div class="trx-total" style="color:var(--pink)">🎁 Reward</div>
                 </div>
-              </div>`;
-          }).join('')}
-        </div>
-      </div>`
-    : '';
+                <svg id="pchv-r-${t.id}" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </div>
+              <div id="ptd-r-${t.id}" class="trx-body">
+                ${(t.items||[]).map(item => `
+                  <div class="trx-detail-row">
+                    <span class="trx-detail-nama">${esc(item.bibit_nama)}</span>
+                    <span>${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)} · <strong style="color:var(--pink)">Gratis</strong></span>
+                  </div>`).join('')}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
 
-  return `
-    <div class="section-title">Riwayat Transaksi</div>
-    ${cards}
-    ${rewardTrxCard}`;
+  document.getElementById('riwayat-content').innerHTML = cards + rewardTrxCard;
 }
 
-function toggleTrxDetail(id, headerEl) {
-  const body = document.getElementById(id);
-  if (!body) return;
-  const isOpen = body.style.display === 'block';
-  body.style.display = isOpen ? 'none' : 'block';
-  const chvId = id.replace(/^ptd-/, 'pchv-');
-  const chv   = document.getElementById(chvId);
-  if (chv) chv.style.transform = isOpen ? '' : 'rotate(180deg)';
+function renderTrxDetail(t, s) {
+  const itemsPerReward = t.items_per_reward || {};
+  const rewardGroups   = Object.keys(itemsPerReward);
+  if (!rewardGroups.length) return '<div style="font-size:12px;color:var(--text2);padding:4px 0">Tidak ada detail</div>';
+
+  return rewardGroups.map(groupKey => {
+    const groupItems    = itemsPerReward[groupKey];
+    const isProgress    = groupKey === 'progress';
+    const filteredItems = groupItems.filter(item => {
+      const stampKe = parseInt(item.stamp_ke || 0);
+      return stampKe >= s.stamp_dari && stampKe <= s.stamp_ke;
+    });
+    if (!filteredItems.length) return '';
+
+    const groupLabel = isProgress
+      ? `<div style="font-size:10px;color:var(--text2);font-style:italic;margin-bottom:4px">Progress reward berikutnya</div>`
+      : '';
+
+    const rows = filteredItems.map(item => {
+      if (item.is_mix) return `
+        <div class="trx-detail-row">
+          <span class="trx-detail-nama">Mix · ${item.items ? item.items.join(' + ') : ''}</span>
+          <span>Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}</span>
+        </div>`;
+      return `
+        <div class="trx-detail-row">
+          <span class="trx-detail-nama">${esc(item.bibit_nama)} <span style="color:var(--text3);font-size:10px">#${item.stamp_ke}</span></span>
+          <span>${item.jumlah} ${esc(item.satuan)} · Rp ${parseFloat(item.subtotal).toLocaleString('id-ID')}</span>
+        </div>`;
+    }).join('');
+
+    return groupLabel + rows;
+  }).filter(Boolean).join('<div style="height:1px;background:var(--border);margin:6px 0"></div>');
 }
-// ---- Info Member ----
-function renderInfoMember(member) {
+
+// ══════════════════════════════
+// RENDER — PROFIL
+// ══════════════════════════════
+function renderProfil() {
+  if (!portalData) return;
+  const { member, rewards } = portalData;
   const tglDaftar = new Date(member.created_at).toLocaleDateString('id-ID', {
     day: 'numeric', month: 'long', year: 'numeric'
   });
+  const totalReward = rewards.filter(r => r.status === 'redeemed').length;
 
-  return `
-    <div class="section-title">Info Akun</div>
+  document.getElementById('profil-content').innerHTML = `
+    <!-- Avatar -->
+    <div class="profil-avatar-wrap">
+      <div class="profil-avatar">${esc(member.nama.charAt(0).toUpperCase())}</div>
+      <div class="profil-nama">${esc(member.nama)}</div>
+      <div class="profil-cabang">Cabang ${esc(member.cabang_asal_nama || '-')}</div>
+    </div>
+
+    <!-- Stat boxes -->
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-val">${member.total_stamp}</div>
+        <div class="stat-lbl">Total Stamp</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--pink)">${totalReward}</div>
+        <div class="stat-lbl">Reward Ditukar</div>
+      </div>
+    </div>
+
+    <!-- Info detail -->
     <div class="card">
+      <div class="card-title">Info Akun</div>
       <div class="info-row">
         <span class="info-label">Nama</span>
         <span class="info-value">${esc(member.nama)}</span>
@@ -1113,23 +1324,45 @@ function renderInfoMember(member) {
         <span class="info-value">${tglDaftar}</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Total Belanja</span>
-        <span class="info-value" style="color:var(--teal)">Rp ${parseFloat(member.total_belanja || 0).toLocaleString('id-ID')}</span>
+        <span class="info-label">Total Belanja Ber-stamp</span>
+        <span class="info-value" style="color:var(--blue)">Rp ${parseFloat(member.total_belanja||0).toLocaleString('id-ID')}</span>
       </div>
     </div>
-    <div style="height:20px"></div>`;
+
+    <!-- Tombol logout -->
+    <button onclick="doLogout()"
+      style="width:100%;padding:13px;border:1.5px solid var(--border);border-radius:12px;
+      background:none;font-size:14px;color:var(--text2);font-weight:600;cursor:pointer;
+      font-family:inherit;margin-top:4px;transition:background .15s"
+      onmouseover="this.style.background='var(--bg)'"
+      onmouseout="this.style.background='none'">
+      Keluar dari Akun
+    </button>
+    <div style="height:8px"></div>`;
 }
 
-// ================================================
-// QR CODE GENERATOR
-// ================================================
+// ══════════════════════════════
+// TOGGLE TRX DETAIL
+// ══════════════════════════════
+function toggleTrxDetail(bodyId, chevronId) {
+  const body = document.getElementById(bodyId);
+  const chv  = document.getElementById(chevronId);
+  if (!body) return;
+  const isOpen = body.style.display === 'block';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (chv) chv.classList.toggle('open', !isOpen);
+}
+
+// ══════════════════════════════
+// QR CODE
+// ══════════════════════════════
 async function generateQR(elementId, text) {
   if (!window.QRCode) {
     await new Promise((resolve, reject) => {
-      const s  = document.createElement('script');
-      s.src    = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-      s.onload = resolve;
-      s.onerror= reject;
+      const s = document.createElement('script');
+      s.src   = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      s.onload  = resolve;
+      s.onerror = reject;
       document.head.appendChild(s);
     });
   }
@@ -1138,15 +1371,15 @@ async function generateQR(elementId, text) {
   el.innerHTML = '';
   new QRCode(el, {
     text,
-    width: 160,
-    height: 160,
+    width:  130,
+    height: 130,
     correctLevel: QRCode.CorrectLevel.M,
   });
 }
 
-// ================================================
+// ══════════════════════════════
 // HELPER
-// ================================================
+// ══════════════════════════════
 function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -1155,6 +1388,5 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 </script>
-
 </body>
 </html>
