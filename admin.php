@@ -375,9 +375,6 @@ $user = currentUser();
     <div class="form-group">
       <label>Cabang Asal <span style="color:var(--red)">*</span></label>
       <select id="dm-admin-cabang">
-        ${cabangData?.map(c =>
-          `<option value="${c.id}">${c.nama}</option>`
-        ).join('') || ''}
       </select>
     </div>
     <div class="form-group">

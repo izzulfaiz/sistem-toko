@@ -632,7 +632,6 @@ function renderPortal(data) {
 
   content.innerHTML = `
     ${renderHero(member, stats, rewards.filter(r => r.status === 'redeemed').length)}
-    ${renderStampProgress(member)}
     ${renderRewards(rewards)}
     ${renderQR(member)}
     ${renderRiwayat(riwayat, rewards)}  
@@ -646,25 +645,34 @@ function renderPortal(data) {
 
 // ---- Hero ----
 function renderHero(member, stats, rewardPending) {
-  const tglDaftar = new Date(member.created_at).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'long', year: 'numeric'
-  });
+  const stampMod = member.stamp_available % 10;
+  const pct      = (stampMod / 10) * 100;
   return `
     <div class="hero">
       <div class="hero-greeting">Selamat datang 👋</div>
       <div class="hero-nama">${esc(member.nama)}</div>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="hero-stat-val">${member.total_stamp}</div>
-          <div class="hero-stat-lbl">Total Stamp</div>
+
+      <!-- Progress utama -->
+      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;opacity:.85">Menuju reward berikutnya</span>
+          <span style="font-size:20px;font-weight:700;color:#fde9ba">${stampMod}/10</span>
         </div>
-        <div class="hero-stat">
-          <div class="hero-stat-val">${member.stamp_available % 10}/10</div>
-          <div class="hero-stat-lbl">Progress</div>
+        <div style="height:8px;background:rgba(255,255,255,0.2);border-radius:99px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;background:#fde9ba;border-radius:99px;width:${pct}%"></div>
         </div>
-        <div class="hero-stat">
-          <div class="hero-stat-val" style="color:${rewardPending > 0 ? '#fde9ba' : 'inherit'}">${rewardPending}</div>
-          <div class="hero-stat-lbl">Reward 🎁</div>
+        <div style="font-size:11px;opacity:.7">${10 - stampMod} stamp lagi untuk dapat reward</div>
+      </div>
+
+      <!-- Info sekunder -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
+          <div style="font-size:16px;font-weight:700">${member.total_stamp}</div>
+          <div style="font-size:10px;opacity:.75">Total sejak daftar</div>
+        </div>
+        <div style="text-align:center;background:rgba(255,255,255,0.12);border-radius:8px;padding:8px 4px">
+          <div style="font-size:16px;font-weight:700;color:${rewardPending > 0 ? '#fde9ba' : '#fff'}">${rewardPending}</div>
+          <div style="font-size:10px;opacity:.75">Reward tersedia 🎁</div>
         </div>
       </div>
     </div>`;
@@ -1028,7 +1036,6 @@ function renderRiwayat(riwayat, rewards) {
           ${rewardTrxs.map(t => {
             const tgl = new Date(t.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
             const jam = t.created_at.split(' ')[1]?.substring(0, 5) || '';
-            console.log('reward trx items:', t.id, t.items);
 const detailRows = (t.items || []).map(item => `
   <div style="display:flex;justify-content:space-between;align-items:center;
     font-size:11px;padding:6px 0;border-bottom:0.5px solid var(--border);gap:8px">

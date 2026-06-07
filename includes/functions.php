@@ -169,7 +169,12 @@ function getTransaksiById(int $id): ?array {
     $stmt->execute([$id]);
     $trx = $stmt->fetch();
     if (!$trx) return null;
-    $stmt2 = $db->prepare("SELECT td.*, b.nama AS bibit_nama, b.satuan, b.satuan_dasar FROM transaksi_detail td JOIN bibit b ON td.bibit_id = b.id WHERE td.transaksi_id = ?");
+    $stmt2 = $db->prepare("
+        SELECT td.*, b.nama AS bibit_nama, b.satuan, b.satuan_dasar, b.kategori
+        FROM transaksi_detail td
+        JOIN bibit b ON td.bibit_id = b.id
+        WHERE td.transaksi_id = ?
+    ");
     $stmt2->execute([$id]);
     $trx['items'] = $stmt2->fetchAll();
     return $trx;
@@ -262,6 +267,14 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
 
         if (str_starts_with($trx['kode_nota'], 'BATAL-')) throw new Exception('Transaksi ini sudah dibatalkan');
 
+        // ---- Cek reward sebelum apapun ----
+        if (str_starts_with($trx['kode_nota'], 'REWARD-')) {
+            throw new Exception(
+                'Transaksi reward tidak dapat dibatalkan. ' .
+                'Hubungi admin jika ada kesalahan.'
+            );
+        }
+
         // ---- Cek reward jika transaksi punya member ----
         if ($trx['member_id']) {
             $member_id = (int)$trx['member_id'];
@@ -348,14 +361,6 @@ function batalTransaksi(int $transaksi_id, int $user_id): array {
             }
         }
 
-
-        // ---- Jika transaksi reward, TOLAK pembatalan ----
-if (str_starts_with($trx['kode_nota'], 'REWARD-')) {
-    throw new Exception(
-        'Transaksi reward tidak dapat dibatalkan. ' .
-        'Hubungi admin jika ada kesalahan.'
-    );
-}
 
         // ---- Kembalikan stok ----
         $stmt2 = $db->prepare("SELECT * FROM transaksi_detail WHERE transaksi_id = ?");
@@ -926,10 +931,13 @@ function simpanRewardTransaksi(
             ]);
         }
 
-        // Update reward jadi redeemed
+    
+// Update reward jadi redeemed
+        $bibit_id_reward = (int)($items[0]['bibit_id'] ?? 0);
         $stmtU = $db->prepare("
             UPDATE member_rewards
             SET status          = 'redeemed',
+                bibit_id        = ?,
                 redeemed_by     = ?,
                 cabang_redeemed = ?,
                 redeemed_at     = NOW(),
@@ -937,6 +945,7 @@ function simpanRewardTransaksi(
             WHERE id = ?
         ");
         $stmtU->execute([
+            $bibit_id_reward,
             $user_id,
             $cabang_id,
             'Transaksi: ' . $kode_nota,

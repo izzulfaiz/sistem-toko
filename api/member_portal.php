@@ -301,6 +301,27 @@ if ($method === 'POST') {
         $no_hp = trim($body['no_hp'] ?? '');
         if (!$no_hp) portalResponse(['success' => false, 'message' => 'No HP wajib diisi'], 400);
 
+        // Rate limiting — maksimal 5 percobaan per 5 menit
+        $now        = time();
+        $attempts   = $_SESSION['login_attempts']  ?? 0;
+        $last_try   = $_SESSION['login_last_try']  ?? 0;
+
+        // Reset counter jika sudah lebih dari 5 menit
+        if ($now - $last_try > 300) {
+            $attempts = 0;
+        }
+
+        if ($attempts >= 5) {
+            $sisa = 300 - ($now - $last_try);
+            portalResponse([
+                'success' => false,
+                'message' => 'Terlalu banyak percobaan login. Coba lagi dalam ' . ceil($sisa / 60) . ' menit.'
+            ], 429);
+        }
+
+        $_SESSION['login_attempts'] = $attempts + 1;
+        $_SESSION['login_last_try'] = $now;
+
         // Normalisasi: hapus strip/spasi, ganti 08 -> 628
         $no_hp_clean = preg_replace('/[\s\-()]/', '', $no_hp);
 
@@ -318,6 +339,10 @@ if ($method === 'POST') {
         if (!$member) {
             portalResponse(['success' => false, 'message' => 'No HP tidak terdaftar sebagai member aktif'], 404);
         }
+
+        // Reset counter login setelah berhasil
+        $_SESSION['login_attempts'] = 0;
+        $_SESSION['login_last_try'] = 0;
 
         // Simpan session
         $_SESSION['portal_member'] = [

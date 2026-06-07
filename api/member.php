@@ -37,7 +37,6 @@ if ($method === 'GET') {
     if ($action === 'summary') {
         $cabang_id = (int)($_GET['cabang_id'] ?? $user['cabang_id']);
 
-        $total = (int)$db->prepare("SELECT COUNT(*) FROM members WHERE cabang_asal_id = ?")->execute([$cabang_id]) ? 0 : 0;
         $stmt = $db->prepare("SELECT COUNT(*) FROM members WHERE cabang_asal_id = ?");
         $stmt->execute([$cabang_id]);
         $total_member = (int)$stmt->fetchColumn();
@@ -413,50 +412,5 @@ if ($method === 'POST') {
             'qr_code'   => $qr_code,
             'message'   => "Member $nama berhasil didaftarkan",
         ]);
-    }
-
-    // ---- Redeem reward ----
-    if ($action === 'redeem') {
-        $reward_id = (int)($body['reward_id'] ?? 0);
-        $bibit_id  = (int)($body['bibit_id']  ?? 0);
-        $cabang_id = (int)($body['cabang_id'] ?? $user['cabang_id']);
-
-        if (!$reward_id) jsonResponse(['success' => false, 'message' => 'Reward ID tidak valid'], 400);
-        if (!$bibit_id)  jsonResponse(['success' => false, 'message' => 'Pilih bibit terlebih dahulu'], 400);
-
-        // Ambil reward & validasi
-        $stmt = $db->prepare("SELECT * FROM member_rewards WHERE id = ? AND status = 'pending'");
-        $stmt->execute([$reward_id]);
-        $reward = $stmt->fetch();
-        if (!$reward) jsonResponse(['success' => false, 'message' => 'Reward tidak ditemukan atau sudah ditukar'], 404);
-
-        $db->beginTransaction();
-        try {
-            // Update reward
-            $stmt2 = $db->prepare("
-                UPDATE member_rewards
-                SET status = 'redeemed',
-                    bibit_id = ?,
-                    redeemed_by = ?,
-                    cabang_redeemed = ?,
-                    redeemed_at = NOW()
-                WHERE id = ?
-            ");
-            $stmt2->execute([$bibit_id, $user['id'], $cabang_id, $reward_id]);
-
-            // Kurangi stamp_available member sebesar 10
-            $stmt3 = $db->prepare("
-                UPDATE members
-                SET stamp_available = GREATEST(stamp_available - 10, 0)
-                WHERE id = ?
-            ");
-            $stmt3->execute([$reward['member_id']]);
-
-            $db->commit();
-            jsonResponse(['success' => true, 'message' => 'Reward berhasil ditukar']);
-        } catch (Exception $e) {
-            $db->rollBack();
-            jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
-        }
     }
 }

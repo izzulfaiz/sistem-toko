@@ -19,6 +19,45 @@ const esc = (s) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+
+/* ================================================
+   MODAL KONFIRMASI CUSTOM
+   ================================================ */
+function showConfirm(pesan, judul = "Konfirmasi") {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.className = "modal-bg open";
+    modal.innerHTML = `
+      <div class="modal" style="max-width:360px;width:90%">
+        <div class="modal-header">
+          <span class="modal-title">${judul}</span>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:13px;color:var(--text);line-height:1.6">${pesan}</div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:8px">
+          <button class="btn" style="flex:1" id="confirm-batal">Batal</button>
+          <button class="btn btn-danger" style="flex:2" id="confirm-ok">Ya, Lanjutkan</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById("confirm-ok").onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+    document.getElementById("confirm-batal").onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(false);
+      }
+    });
+  });
+}
+
 /* ================================================
    TOAST NOTIFICATION
    ================================================ */
@@ -517,12 +556,6 @@ async function buildLogTab(target) {
   }
 }
 
-async function hapusLog() {
-  if (!confirm("Hapus semua log?")) return;
-  await api(BASE_URL + "/api/log.php", "DELETE");
-  renderAdminContent();
-}
-
 /* ================================================
    TAB LAPORAN
    ================================================ */
@@ -1018,7 +1051,13 @@ async function saveUser() {
 }
 
 async function deleteUser(id) {
-  if (!confirm("Hapus user ini?")) return;
+  if (
+    !(await showConfirm(
+      "Hapus user ini? Aksi ini tidak bisa diurungkan.",
+      "Hapus User",
+    ))
+  )
+    return;
   await api(BASE_URL + "/api/users.php", "DELETE", { id });
   renderAdminContent();
 }
@@ -1437,7 +1476,7 @@ async function saveStokModal() {
       "Distribusi Berhasil",
     );
   } catch (e) {
-    alert(e.message);
+    toastErr(e.message);
   }
 }
 
@@ -1713,7 +1752,13 @@ async function simpanEditBibit() {
 }
 
 async function deleteProduk(target, id) {
-  if (!confirm(`Hapus ${target} ini?`)) return;
+  if (
+    !(await showConfirm(
+      `Hapus ${target} ini? Aksi ini tidak bisa diurungkan.`,
+      "Hapus Data",
+    ))
+  )
+    return;
   await api(BASE_URL + "/api/stok.php", "DELETE", { target, id });
   await loadStokData();
   renderAdminContent();
@@ -2161,8 +2206,19 @@ function setMixGroup(idx, val) {
   renderNota();
 }
 
-function batalNota() {
-  if (!notaItems.length || confirm("Batalkan nota ini?")) {
+async function batalNota() {
+  if (!notaItems.length) {
+    notaItems = [];
+    renderNota();
+    clearProduk();
+    return;
+  }
+  if (
+    await showConfirm(
+      "Batalkan nota ini? Semua item akan dihapus.",
+      "Batalkan Nota",
+    )
+  ) {
     notaItems = [];
     renderNota();
     clearProduk();
@@ -2175,10 +2231,10 @@ function batalNota() {
 
 async function konfirmasiBatal(id, kodeNota) {
   if (
-    !confirm(`Batalkan nota ${kodeNota}?
-
-Stok akan dikembalikan secara otomatis.
-Aksi ini tidak bisa diurungkan.`)
+    !(await showConfirm(
+      `Batalkan nota <strong>${esc(kodeNota)}</strong>?<br/><br/>Stok akan dikembalikan secara otomatis.<br/>Aksi ini tidak bisa diurungkan.`,
+      "Batalkan Nota",
+    ))
   )
     return;
   try {
@@ -2194,6 +2250,399 @@ Aksi ini tidak bisa diurungkan.`)
     }
   } catch (e) {
     toastErr(e.message);
+  }
+}
+
+/* ================================================
+   TAUTKAN MEMBER KE TRANSAKSI
+   ================================================ */
+let tautkanTrxId = null;
+let tautkanTrxItems = [];
+let tautkanStampItems = []; // item yang akan di-stamp
+let _tautkanSelectedMemberId = null;
+let tautkanSearchTimer = null;
+
+async function bukaModalTautkanMember(trxId, kodeNota) {
+  tautkanTrxId = trxId;
+  tautkanTrxItems = [];
+  tautkanStampItems = [];
+  _tautkanSelectedMemberId = null;
+
+  // Ambil detail item transaksi dari API
+  try {
+    const res = await api(`${BASE_URL}/api/transaksi.php?id=${trxId}`);
+    tautkanTrxItems = res.transaksi?.items || [];
+  } catch (e) {
+    toastErr("Gagal memuat detail transaksi");
+    return;
+  }
+
+  // Buat modal
+  const existing = document.getElementById("modal-tautkan-member");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "modal-tautkan-member";
+  modal.className = "modal-bg open";
+  modal.innerHTML = `
+    <div class="modal" style="max-width:480px;width:95%">
+      <div class="modal-header">
+        <span class="modal-title">🔗 Tautkan Member</span>
+        <button class="modal-close" onclick="tutupModalTautkan()">×</button>
+      </div>
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+
+        <!-- Info nota -->
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;padding:8px 10px;
+          background:var(--bg2);border-radius:8px">
+          Nota: <strong>${esc(kodeNota)}</strong>
+        </div>
+
+        <!-- Cari member -->
+        <div class="form-group">
+          <label>Pilih Member</label>
+          <div id="tautkan-search-wrap">
+            <input type="text" id="tautkan-search"
+              placeholder="Ketik nama atau no HP..."
+              oninput="cariMemberTautkan(this.value)"
+              autocomplete="off"/>
+            <div id="tautkan-dropdown"
+              style="display:none;border:0.5px solid var(--border);border-radius:8px;
+              margin-top:4px;overflow:hidden;max-height:180px;overflow-y:auto;
+              background:var(--bg)"></div>
+          </div>
+          <div id="tautkan-member-terpilih" style="display:none;padding:10px 12px;
+            background:var(--teal-l);border:0.5px solid #9fe1cb;border-radius:8px;
+            margin-top:6px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--teal)"
+                  id="tautkan-nama-display"></div>
+                <div style="font-size:11px;color:var(--text2)"
+                  id="tautkan-info-display"></div>
+              </div>
+              <button onclick="clearTautkanMember()"
+                style="border:none;background:none;font-size:18px;
+                cursor:pointer;color:var(--teal)">×</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daftar item transaksi + stamp -->
+        <div style="margin-top:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);
+            text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+            Item Transaksi — Pilih yang akan di-stamp
+          </div>
+          <div id="tautkan-item-list">
+            ${renderTautkanItems()}
+          </div>
+        </div>
+
+        <div id="tautkan-err"
+          style="color:var(--red);font-size:12px;margin-top:8px;min-height:16px"></div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px">
+        <button class="btn" style="flex:1" onclick="tutupModalTautkan()">Batal</button>
+        <button class="btn btn-primary" style="flex:2" id="btn-simpan-tautkan"
+          onclick="simpanTautkanMember()">Tautkan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) tutupModalTautkan();
+  });
+
+  setTimeout(() => document.getElementById("tautkan-search")?.focus(), 100);
+}
+
+function renderTautkanItems() {
+  if (!tautkanTrxItems.length) {
+    return '<div class="empty">Tidak ada item</div>';
+  }
+
+  return tautkanTrxItems
+    .map((item, i) => {
+      const produk = allProduk.find((p) => p.id == item.bibit_id);
+      const isAksesoris =
+        (produk?.kategori || item.kategori || "") === "aksesoris";
+
+      // Cek status stamp di tautkanStampItems
+      const stampEntry = tautkanStampItems.find(
+        (s) => s.bibit_id == item.bibit_id,
+      );
+      const isStamped = !!stampEntry;
+      const mixGroup = stampEntry?.mix_group || null;
+
+      // Existing mix groups
+      const existingMix = [
+        ...new Set(
+          tautkanStampItems.filter((s) => s.mix_group).map((s) => s.mix_group),
+        ),
+      ].sort((a, b) => a - b);
+      const nextMixNum = existingMix.length ? Math.max(...existingMix) + 1 : 1;
+
+      let mixOpts = existingMix
+        .map(
+          (n) =>
+            `<option value="${n}" ${mixGroup === n ? "selected" : ""}>Mix ${n}</option>`,
+        )
+        .join("");
+      mixOpts += `<option value="${nextMixNum}">+ Mix Baru (Mix ${nextMixNum})</option>`;
+      if (mixGroup) mixOpts += `<option value="0">✕ Lepas dari Mix</option>`;
+
+      // Checkbox stamp — aksesoris hanya bisa di-stamp via mix
+      let stampControl = "";
+      if (isAksesoris) {
+        stampControl = `
+        <span style="font-size:10px;color:var(--text2);padding:2px 6px;
+          background:var(--bg2);border-radius:6px;flex-shrink:0"
+          title="Aksesoris hanya bisa stamp via Mix">
+          Aksesoris
+        </span>`;
+      } else {
+        stampControl = `
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" ${isStamped ? "checked" : ""}
+            onchange="toggleTautkanStamp(${item.bibit_id}, this.checked)"
+            style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer"/>
+          <span style="font-size:10px;color:var(--text2)">Stamp</span>
+        </label>`;
+      }
+
+      const mixBadge = mixGroup
+        ? `<span style="font-size:10px;background:var(--amber-m);color:#7a4f00;
+          padding:1px 6px;border-radius:99px;font-weight:600">Mix ${mixGroup}</span>`
+        : "";
+
+      return `
+      <div style="display:flex;align-items:center;gap:8px;padding:9px 0;
+        border-bottom:0.5px solid var(--border)" id="tautkan-item-${item.bibit_id}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;display:flex;align-items:center;
+            gap:5px;flex-wrap:wrap">
+            ${esc(item.bibit_nama)}
+            ${mixBadge}
+          </div>
+          <div style="font-size:11px;color:var(--text2)">
+            ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}
+            · Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          ${stampControl}
+          <select onchange="setTautkanMix(${item.bibit_id}, this.value)"
+            style="font-size:10px;padding:2px 4px;border:0.5px solid var(--border);
+            border-radius:6px;background:var(--bg2);cursor:pointer;max-width:80px"
+            title="Tandai sebagai mix">
+            <option value="">Mix...</option>
+            ${mixOpts}
+          </select>
+        </div>
+      </div>`;
+    })
+    .join("");
+}
+
+function toggleTautkanStamp(bibit_id, checked) {
+  if (checked) {
+    if (!tautkanStampItems.find((s) => s.bibit_id == bibit_id)) {
+      tautkanStampItems.push({ bibit_id, mix_group: null });
+    }
+  } else {
+    tautkanStampItems = tautkanStampItems.filter((s) => s.bibit_id != bibit_id);
+  }
+  refreshTautkanItemList();
+}
+
+function setTautkanMix(bibit_id, val) {
+  const num = parseInt(val);
+
+  if (isNaN(num) || num === 0) {
+    // Lepas dari mix
+    const entry = tautkanStampItems.find((s) => s.bibit_id == bibit_id);
+    if (entry) entry.mix_group = null;
+
+    // Kalau aksesoris lepas dari mix → hapus dari stamp list
+    const produk = allProduk.find((p) => p.id == bibit_id);
+    const isAksesoris = (produk?.kategori || "") === "aksesoris";
+    if (isAksesoris) {
+      tautkanStampItems = tautkanStampItems.filter(
+        (s) => s.bibit_id != bibit_id,
+      );
+    }
+  } else {
+    // Set mix group
+    const existing = tautkanStampItems.find((s) => s.bibit_id == bibit_id);
+    if (existing) {
+      existing.mix_group = num;
+    } else {
+      // Otomatis tambah ke stamp list kalau belum ada
+      tautkanStampItems.push({ bibit_id, mix_group: num });
+    }
+
+    // Sync stamp_counted untuk semua item dalam mix group ini
+    const firstInGroup = tautkanStampItems.find(
+      (s) => s.mix_group === num && s.bibit_id != bibit_id,
+    );
+    if (firstInGroup) {
+      // Ikut status grup yang sudah ada
+      const entry = tautkanStampItems.find((s) => s.bibit_id == bibit_id);
+      if (entry) entry.mix_group = num;
+    }
+  }
+
+  refreshTautkanItemList();
+}
+
+function refreshTautkanItemList() {
+  const wrap = document.getElementById("tautkan-item-list");
+  if (wrap) wrap.innerHTML = renderTautkanItems();
+}
+
+// ---- Search member ----
+async function cariMemberTautkan(val) {
+  clearTimeout(tautkanSearchTimer);
+  const drop = document.getElementById("tautkan-dropdown");
+  if (!drop) return;
+  if (!val || val.length < 2) {
+    drop.style.display = "none";
+    return;
+  }
+  tautkanSearchTimer = setTimeout(async () => {
+    try {
+      const data = await api(
+        `${BASE_URL}/api/member.php?action=search&q=${encodeURIComponent(val)}`,
+      );
+      const members = data.members || [];
+      if (!members.length) {
+        drop.innerHTML = `<div style="padding:10px 14px;font-size:13px;
+          color:var(--text2)">Member tidak ditemukan</div>`;
+      } else {
+        drop.innerHTML = members
+          .map(
+            (m) => `
+          <div onclick="pilihMemberTautkan(${m.id},'${esc(m.nama)}','${esc(m.no_hp)}',${m.total_stamp})"
+            style="padding:10px 14px;font-size:13px;cursor:pointer;
+            border-bottom:0.5px solid var(--border);transition:background .1s"
+            onmouseover="this.style.background='var(--bg2)'"
+            onmouseout="this.style.background=''">
+            <div style="font-weight:500">${esc(m.nama)}</div>
+            <div style="font-size:11px;color:var(--text2)">
+              ${esc(m.no_hp)} · ${m.total_stamp} stamp
+            </div>
+          </div>`,
+          )
+          .join("");
+      }
+      drop.style.display = "block";
+    } catch (e) {
+      console.error(e);
+    }
+  }, 350);
+}
+
+function pilihMemberTautkan(id, nama, noHp, totalStamp) {
+  _tautkanSelectedMemberId = id;
+  const drop = document.getElementById("tautkan-dropdown");
+  const wrap = document.getElementById("tautkan-search-wrap");
+  const terpilih = document.getElementById("tautkan-member-terpilih");
+  const namaEl = document.getElementById("tautkan-nama-display");
+  const infoEl = document.getElementById("tautkan-info-display");
+
+  if (drop) drop.style.display = "none";
+  if (terpilih) terpilih.style.display = "block";
+  if (namaEl) namaEl.textContent = nama;
+  if (infoEl) infoEl.textContent = `${noHp} · ${totalStamp} stamp`;
+
+  // Sembunyikan search input setelah pilih
+  const searchEl = document.getElementById("tautkan-search");
+  if (searchEl) {
+    searchEl.value = "";
+    searchEl.style.display = "none";
+  }
+}
+
+function clearTautkanMember() {
+  _tautkanSelectedMemberId = null;
+  const terpilih = document.getElementById("tautkan-member-terpilih");
+  const searchEl = document.getElementById("tautkan-search");
+  if (terpilih) terpilih.style.display = "none";
+  if (searchEl) {
+    searchEl.style.display = "block";
+    searchEl.value = "";
+    searchEl.focus();
+  }
+}
+
+function tutupModalTautkan() {
+  tautkanTrxId = null;
+  tautkanTrxItems = [];
+  tautkanStampItems = [];
+  _tautkanSelectedMemberId = null;
+  document.getElementById("modal-tautkan-member")?.remove();
+}
+
+async function simpanTautkanMember() {
+  if (!_tautkanSelectedMemberId) {
+    const errEl = document.getElementById("tautkan-err");
+    if (errEl) errEl.textContent = "Pilih member terlebih dahulu";
+    return;
+  }
+
+  // Validasi: aksesoris dalam mix harus ada pasangan bibit
+  const mixGroups = [
+    ...new Set(
+      tautkanStampItems.filter((s) => s.mix_group).map((s) => s.mix_group),
+    ),
+  ];
+
+  for (const mg of mixGroups) {
+    const itemsInMix = tautkanStampItems.filter((s) => s.mix_group === mg);
+    const adaBibit = itemsInMix.some((s) => {
+      const produk = allProduk.find((p) => p.id == s.bibit_id);
+      return (produk?.kategori || "") !== "aksesoris";
+    });
+    if (!adaBibit) {
+      toastWarn(
+        `Mix ${mg} tidak punya bibit — aksesoris tidak bisa stamp sendiri`,
+      );
+      return;
+    }
+  }
+
+  const btnEl = document.getElementById("btn-simpan-tautkan");
+  const errEl = document.getElementById("tautkan-err");
+  if (btnEl) btnEl.disabled = true;
+  if (errEl) errEl.textContent = "";
+
+  try {
+    const res = await api(`${BASE_URL}/api/transaksi.php`, "POST", {
+      action: "tautkan_member",
+      transaksi_id: tautkanTrxId,
+      member_id: _tautkanSelectedMemberId,
+      stamp_data: tautkanStampItems,
+    });
+
+    if (res.success) {
+      tutupModalTautkan();
+      await loadKaryawanData();
+      await loadRiwayat();
+
+      let msg = res.message;
+      if (res.stamp_ditambahkan > 0)
+        msg += ` · +${res.stamp_ditambahkan} stamp`;
+      if (res.reward_baru > 0) msg += ` · 🎁 ${res.reward_baru} reward baru!`;
+
+      toastOk(msg, "Member Ditautkan!");
+    } else {
+      if (errEl) errEl.textContent = res.message;
+      if (btnEl) btnEl.disabled = false;
+    }
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message;
+    if (btnEl) btnEl.disabled = false;
   }
 }
 
@@ -4062,7 +4511,13 @@ async function loadLogPage(page) {
 }
 
 async function hapusLog() {
-  if (!confirm("Hapus semua log aktivitas?")) return;
+  if (
+    !(await showConfirm(
+      "Hapus semua log aktivitas? Aksi ini tidak bisa diurungkan.",
+      "Hapus Semua Log",
+    ))
+  )
+    return;
   await api(BASE_URL + "/api/log.php", "DELETE");
   logPage = 1;
   logKeyword = "";
@@ -4200,6 +4655,18 @@ async function loadRiwayatPage(page, tgl) {
           !isBatal && isToday
             ? `<button class="btn btn-sm btn-danger" onclick="konfirmasiBatal(${t.id},'${esc(t.kode_nota)}')" style="margin-top:8px">Batalkan Nota</button>`
             : "";
+
+        // Tombol tautkan member — muncul kalau transaksi hari ini
+        const adaItemStampable = (t.items || []).some((item) => {
+          const produk = allProduk.find((p) => p.id == item.bibit_id);
+          return (produk?.kategori || "") !== "aksesoris";
+        });
+        const tautkanBtn =
+          !isBatal && !isReward && isToday && !t.member_id && adaItemStampable
+            ? `<button class="btn btn-sm btn-teal" onclick="bukaModalTautkanMember(${t.id},'${esc(t.kode_nota)}')" style="margin-top:8px">
+        🔗 Tautkan Member
+      </button>`
+            : "";
         const statusBadge = isBatal
           ? `<span class="badge" style="background:var(--red-l);color:var(--red)">Dibatalkan</span>`
           : isReward
@@ -4220,16 +4687,17 @@ async function loadRiwayatPage(page, tgl) {
         </div>
         <div class="trx-items">${items}</div>
         ${t.catatan ? `<div style="font-size:11px;color:var(--text2);margin-top:6px">📝 ${esc(t.catatan)}</div>` : ""}
-        <div style="display:flex;gap:8px;margin-top:8px">
-          ${batalBtn}
-          ${
-            !isBatal
-              ? `<button class="btn btn-sm" onclick='printNota(${JSON.stringify(t)})' style="margin-left:auto">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+  ${batalBtn}
+  ${tautkanBtn}
+  ${
+    !isBatal
+      ? `<button class="btn btn-sm" onclick='printNota(${JSON.stringify(t)})' style="margin-left:auto">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
             Print Nota
           </button>`
-              : ""
-          }
+      : ""
+  }
         </div>
       </div>`;
       })
@@ -4509,9 +4977,9 @@ async function loadKeluarHariIni() {
 
 async function hapusKeluar(id, namaItem) {
   const konfirm = namaItem
-    ? `Hapus pengeluaran "${namaItem}"?`
+    ? `Hapus pengeluaran "<strong>${esc(namaItem)}</strong>"?`
     : "Hapus catatan pengeluaran ini?";
-  if (!confirm(konfirm)) return;
+  if (!(await showConfirm(konfirm, "Hapus Pengeluaran"))) return;
   try {
     const res = await api(BASE_URL + "/api/pengeluaran.php", "DELETE", { id });
     if (res.success) {
@@ -5044,31 +5512,36 @@ async function openDetailMember(id) {
 
     // ---- Render ----
     $("mdm-body").innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-        <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px">
-          <div style="font-size:24px;font-weight:700;color:var(--amber)">${m.total_stamp}</div>
-          <div style="font-size:11px;color:var(--text2)">Total Stamp</div>
-        </div>
-        <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px">
-          <div style="font-size:24px;font-weight:700;color:var(--teal)">${m.stamp_available}</div>
-          <div style="font-size:11px;color:var(--text2)">Stamp Tersedia</div>
-        </div>
-      </div>
+  <!-- Progress stamp — utama -->
+  <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600">Menuju Reward Berikutnya</div>
+      <div style="font-size:20px;font-weight:700;color:var(--amber)">${stampMod}/10</div>
+    </div>
+    <div style="height:10px;background:var(--bg);border-radius:99px;overflow:hidden;margin-bottom:8px">
+      <div style="height:100%;background:var(--amber);border-radius:99px;width:${pct}%;transition:width .3s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2)">
+      <span>${stampMod} stamp sudah terkumpul</span>
+      <span>${10 - stampMod} stamp lagi</span>
+    </div>
+  </div>
 
-      <!-- Progress stamp -->
-      <div style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
-          <span>${stampMod}/10 menuju reward berikutnya</span>
-          <span>${10 - stampMod} lagi</span>
-        </div>
-        <div style="height:8px;background:var(--bg2);border-radius:99px;overflow:hidden">
-          <div style="height:100%;background:var(--amber);border-radius:99px;width:${pct}%"></div>
-        </div>
-      </div>
+  <!-- Total stamp — sekunder -->
+  <div style="text-align:center;padding:8px;margin-bottom:14px">
+    <div style="font-size:12px;color:var(--text2)">Total stamp</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text)">${m.total_stamp} stamp</div>
+  </div>
 
       <!-- Info member -->
       <div style="font-size:12px;color:var(--text2);margin-bottom:14px">
-        📱 ${esc(m.no_hp)} &nbsp;·&nbsp; Cabang asal: ${esc(m.cabang_asal_nama || "-")} &nbsp;·&nbsp; Daftar: ${m.created_at.substring(0, 10)}
+        📱 ${esc(m.no_hp)} <br>${esc(m.cabang_asal_nama || "-")} <br> Daftar: ${new Date(
+          m.created_at,
+        ).toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}
       </div>
 
 <!-- Reward -->
@@ -5250,15 +5723,20 @@ function renderStampPreview(count) {
     }`;
 }
 
-// ---- Override simpanTransaksi untuk kirim member_id & stamp_data ----
-// Ganti fungsi simpanTransaksi() yang lama:
 async function simpanTransaksi() {
   if (!notaItems.length) {
     toastWarn("Tambahkan produk ke nota terlebih dahulu");
     return;
   }
-  const catatan = $("k-catatan")?.value || "";
 
+  // Cek apakah ada item yang di-stamp tapi tidak ada member
+  const adaStamp = notaItems.some((item) => item.stamp_counted);
+  if (adaStamp && !selectedMember) {
+    const lanjut = await showKonfirmasiStampTanpaMember();
+    if (!lanjut) return;
+  }
+
+  const catatan = $("k-catatan")?.value || "";
   // Hitung stamp_data untuk backend
   // Hitung stamp_data SESUAI URUTAN item di nota
   const mixGroupsSudahDihitung = new Set();
@@ -5315,39 +5793,52 @@ async function simpanTransaksi() {
     toastErr(e.message);
   }
 }
+function showKonfirmasiStampTanpaMember() {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.className = "modal-bg open";
+    modal.innerHTML = `
+      <div class="modal" style="max-width:360px;width:90%">
+        <div class="modal-header">
+          <span class="modal-title">⚠️ Stamp Tanpa Member</span>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:4px">
+            Ada item yang ditandai stamp tapi belum ada member yang dipilih.
+          </div>
+          <div style="font-size:12px;color:var(--text2);padding:10px;background:var(--bg2);border-radius:8px;margin-top:8px">
+            💡 Stamp tidak akan tercatat ke siapapun jika dilanjutkan tanpa member.
+            Kamu bisa tautkan member nanti dari riwayat transaksi hari ini.
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:8px">
+          <button class="btn" style="flex:1" id="btn-pilih-member-dulu">
+            Pilih Member Dulu
+          </button>
+          <button class="btn btn-danger" style="flex:1" id="btn-lanjut-tanpa-member">
+            Lanjut Tanpa Member
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
 
-// ---- Redeem reward ----
-async function openRedeemReward(rewardId, memberId) {
-  // Load daftar bibit untuk dipilih
-  const bibitOpts = bibitData
-    .map(
-      (b) =>
-        `<option value="${b.id}">${esc(b.nama)} [${esc(b.satuan_dasar || b.satuan || "")}]</option>`,
-    )
-    .join("");
-
-  const confirmed = await showRedeemDialog((rewardOpts) => bibitOpts);
-  // Implementasi dialog sederhana pakai prompt dulu, bisa diganti modal later
-  const bibitId = await pilihBibitReward();
-  if (!bibitId) return;
-
-  try {
-    const res = await api(`${BASE_URL}/api/member.php`, "POST", {
-      action: "redeem",
-      reward_id: rewardId,
-      bibit_id: bibitId,
-      cabang_id: CURRENT_USER.cabang_id,
+    document.getElementById("btn-pilih-member-dulu").onclick = () => {
+      modal.remove();
+      // Scroll ke bagian member section
+      document.getElementById("k-member-search")?.focus();
+      resolve(false);
+    };
+    document.getElementById("btn-lanjut-tanpa-member").onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(false);
+      }
     });
-    if (res.success) {
-      toastOk("Reward berhasil ditukar!", "Redeem Berhasil");
-      closeModal("modal-detail-member");
-      loadTabMember();
-    } else {
-      toastErr(res.message || "Gagal menukar reward");
-    }
-  } catch (e) {
-    toastErr(e.message);
-  }
+  });
 }
 
 async function pilihBibitReward() {
@@ -6025,20 +6516,6 @@ async function openDetailMemberAdmin(id) {
           ? "<strong>1 stamp lagi</strong> untuk dapat reward! 🎉"
           : `<strong>${sisaStamp} stamp lagi</strong> menuju reward berikutnya`;
 
-    const stampHTML = `
-      <div style="background:var(--card);border:0.5px solid var(--border);
-        border-radius:12px;padding:14px;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <span style="font-size:13px;font-weight:600">Progress Stamp</span>
-          <span style="font-size:13px;font-weight:700;color:var(--amber)">${stampMod}/10</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:10px">
-          ${stampBoxes}
-        </div>
-        <div style="font-size:12px;color:var(--text2);text-align:center;
-          padding:7px;background:var(--bg2);border-radius:7px">${msg}</div>
-      </div>`;
-
     // ---- INFO MEMBER ----
     const infoHTML = `
       <div style="background:var(--card);border:0.5px solid var(--border);
@@ -6451,7 +6928,7 @@ async function openDetailMemberAdmin(id) {
         ${rewardTrxCard}`;
     })();
 
-    body.innerHTML = heroHTML + stampHTML + infoHTML + rewardHTML + riwayatHTML;
+    body.innerHTML = heroHTML + infoHTML + rewardHTML + riwayatHTML;
   } catch (e) {
     document.getElementById("amd-body").innerHTML =
       '<div class="alert alert-danger">Gagal memuat detail member</div>';
@@ -6515,9 +6992,10 @@ async function simpanEditMemberAdmin() {
 // ---- Hapus Member ----
 async function hapusMemberAdmin(id, nama) {
   if (
-    !confirm(
-      `Hapus member "${nama}"?\n\nSeluruh data stamp dan reward member ini akan ikut terhapus.`,
-    )
+    !(await showConfirm(
+      `Hapus member "<strong>${esc(nama)}</strong>"?<br/><br/>Seluruh data stamp dan reward member ini akan ikut terhapus permanen.`,
+      "Hapus Member",
+    ))
   )
     return;
   try {

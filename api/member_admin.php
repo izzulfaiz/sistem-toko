@@ -153,6 +153,7 @@ if ($method === 'GET') {
     $rewardRanges = $stmtRewardRange->fetchAll();
 
     $stampItemsMap = [];
+    $detailRewardMap = [];
 
     if (!empty($trxIds)) {
         $placeholders = implode(',', array_fill(0, count($trxIds), '?'));
@@ -189,11 +190,19 @@ if ($method === 'GET') {
             FROM transaksi_detail td
             JOIN bibit b ON td.bibit_id = b.id
             WHERE td.transaksi_id IN ($placeholders)
-            AND td.stamp_counted = 1
             ORDER BY td.id ASC
         ");
         $stmtDetails->execute($trxIds);
         $allDetails = $stmtDetails->fetchAll();
+
+        // Pisahkan: detail untuk stamp dan detail untuk transaksi REWARD
+        $detailRewardMap = [];
+        foreach ($allDetails as $d) {
+            $detailRewardMap[$d['transaksi_id']][] = $d;
+        }
+
+        // Filter hanya stamp_counted untuk map stamp
+        $allDetails = array_filter($allDetails, fn($d) => $d['stamp_counted'] == 1);
 
         // Map detail per transaksi
         $detailSingleMap = [];
@@ -252,7 +261,7 @@ if ($method === 'GET') {
     }
 
     // Mapping riwayat dengan items_per_reward (sama dengan member.php)
-    $riwayat = array_map(function($row) use ($stampItemsMap, $rewardRanges) {
+    $riwayat = array_map(function($row) use ($stampItemsMap, $rewardRanges, $detailRewardMap) {
         $allStampItems = $stampItemsMap[$row['id']] ?? [];
         uasort($allStampItems, fn($a, $b) => $a['stamp_ke'] - $b['stamp_ke']);
 
@@ -281,6 +290,7 @@ if ($method === 'GET') {
         $row['items_per_reward']   = $itemsPerReward;
         $row['nominal_per_reward'] = $nominalPerReward;
         $row['stamp_items']        = array_values($allStampItems);
+        $row['items']              = $detailRewardMap[$row['id']] ?? [];
         return $row;
     }, $riwayatRows);
 
