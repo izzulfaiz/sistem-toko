@@ -6264,6 +6264,18 @@ let memberAdminPage = 1;
 let memberAdminKeyword = "";
 let memberAdminCabang = "all";
 const MEMBER_ADMIN_PER_PAGE = 25;
+let memberAdminSort = { key: "created_at", asc: false };
+
+function sortMemberAdmin(key) {
+  if (memberAdminSort.key === key) {
+    memberAdminSort.asc = !memberAdminSort.asc;
+  } else {
+    memberAdminSort.key = key;
+    memberAdminSort.asc = key === "nama";
+  }
+  memberAdminPage = 1;
+  loadMemberAdminPage(1);
+}
 
 async function buildMemberAdminTab(target) {
   const cabOpts =
@@ -6356,7 +6368,8 @@ async function loadMemberAdminPage(page) {
       `${BASE_URL}/api/member_admin.php?action=list` +
       `&page=${page}&per_page=${MEMBER_ADMIN_PER_PAGE}` +
       `&cabang_id=${memberAdminCabang}` +
-      `&keyword=${encodeURIComponent(memberAdminKeyword)}`;
+      `&keyword=${encodeURIComponent(memberAdminKeyword)}` +
+      `&sort_key=${memberAdminSort.key}&sort_asc=${memberAdminSort.asc ? 1 : 0}`;
     const data = await api(url);
     const members = data.members || [];
 
@@ -6428,11 +6441,21 @@ async function loadMemberAdminPage(page) {
         <table>
           <thead>
             <tr>
-              <th>Member</th>
-              <th>Cabang Asal</th>
-              <th style="text-align:center">Stamp</th>
-              <th style="text-align:center">Reward</th>
-              <th>Terdaftar</th>
+              <th onclick="sortMemberAdmin('nama')" style="cursor:pointer;user-select:none">
+                Member ${memberAdminSort.key === "nama" ? (memberAdminSort.asc ? "↑" : "↓") : '<span style="opacity:.35">↕</span>'}
+              </th>
+              <th onclick="sortMemberAdmin('cabang_asal_nama')" style="cursor:pointer;user-select:none">
+                Cabang Asal ${memberAdminSort.key === "cabang_asal_nama" ? (memberAdminSort.asc ? "↑" : "↓") : '<span style="opacity:.35">↕</span>'}
+              </th>
+              <th onclick="sortMemberAdmin('total_stamp')" style="text-align:center;cursor:pointer;user-select:none">
+                Stamp ${memberAdminSort.key === "total_stamp" ? (memberAdminSort.asc ? "↑" : "↓") : '<span style="opacity:.35">↕</span>'}
+              </th>
+              <th onclick="sortMemberAdmin('reward_pending')" style="text-align:center;cursor:pointer;user-select:none">
+                Reward ${memberAdminSort.key === "reward_pending" ? (memberAdminSort.asc ? "↑" : "↓") : '<span style="opacity:.35">↕</span>'}
+              </th>
+              <th onclick="sortMemberAdmin('created_at')" style="cursor:pointer;user-select:none">
+                Terdaftar ${memberAdminSort.key === "created_at" ? (memberAdminSort.asc ? "↑" : "↓") : '<span style="opacity:.35">↕</span>'}
+              </th>
               <th>Aksi</th>
             </tr>
           </thead>
@@ -6766,6 +6789,7 @@ async function openDetailMemberAdmin(id) {
             : "";
 
           // List transaksi
+          // List transaksi
           const trxRows = s.trxs
             .map((t) => {
               const tgl = new Date(t.created_at).toLocaleDateString("id-ID", {
@@ -6776,11 +6800,11 @@ async function openDetailMemberAdmin(id) {
               const jam = t.created_at.split(" ")[1]?.substring(0, 5) || "";
               const isReward = t.kode_nota.startsWith("REWARD-");
               const stampCount = parseInt(t.stamp_didapat || 0);
+              const itemsPerReward = t.items_per_reward || {};
 
               // Hitung nominal hanya untuk stamp yang masuk ke siklus ini
               const nominalSiklus = (() => {
                 let total = 0;
-                const itemsPerReward = t.items_per_reward || {};
                 Object.values(itemsPerReward).forEach((groupItems) => {
                   groupItems.forEach((item) => {
                     const stampKe = parseInt(item.stamp_ke || 0);
@@ -6792,31 +6816,78 @@ async function openDetailMemberAdmin(id) {
                 return total;
               })();
 
-              const detailRows = (t.items || [])
-                .map(
-                  (item) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;
-      font-size:11px;padding:5px 0;border-bottom:0.5px solid var(--border);gap:8px">
-      <div style="flex:1;min-width:0">
-        <span>${esc(item.bibit_nama)}</span>
-        ${
-          item.stamp_counted
-            ? `<span style="font-size:9px;background:var(--amber-m);color:#7a4f00;
-              padding:1px 5px;border-radius:99px;margin-left:3px">🎫</span>`
-            : ""
-        }
-        <div style="font-size:10px;color:var(--text2);margin-top:1px">
-          ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)}
-          ${!isReward ? "× Rp " + parseFloat(item.harga_satuan).toLocaleString("id-ID") : "· Gratis"}
-        </div>
-      </div>
-      <div style="font-weight:600;white-space:nowrap;
-        color:${isReward ? "var(--teal)" : "var(--text2)"}">
-        ${isReward ? "🎁 Gratis" : "Rp " + parseFloat(item.subtotal).toLocaleString("id-ID")}
-      </div>
-    </div>`,
-                )
-                .join("");
+              // Render grouped items pakai items_per_reward — sama dengan karyawan
+              const rewardGroups = Object.keys(itemsPerReward);
+              const groupedHTML = rewardGroups
+                .map((groupKey) => {
+                  const groupItems = itemsPerReward[groupKey];
+                  const isProgress = groupKey === "progress";
+
+                  const filteredItems = groupItems.filter((item) => {
+                    const stampKe = parseInt(item.stamp_ke || 0);
+                    return stampKe >= s.stamp_dari && stampKe <= s.stamp_ke;
+                  });
+                  if (!filteredItems.length) return "";
+
+                  const groupLabel = isProgress
+                    ? `<span style="font-size:10px;color:var(--text2);font-style:italic">Progress reward berikutnya</span>`
+                    : "";
+
+                  const itemRows = filteredItems
+                    .map((item) => {
+                      if (item.is_mix) {
+                        return `
+            <div style="padding:5px 0 5px 10px;border-left:2px solid var(--amber-m);margin:3px 0">
+              <div style="font-size:11px;font-weight:600;color:var(--amber)">🎫 Mix (stamp ke-${item.stamp_ke})</div>
+              <div style="display:flex;justify-content:space-between">
+                <div style="font-size:11px;color:var(--text2)">${item.items ? item.items.join(" + ") : ""}</div>
+                <div style="font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}</div>
+              </div>
+            </div>`;
+                      } else {
+                        return `
+            <div style="display:flex;justify-content:space-between;align-items:center;
+              padding:5px 0 5px 10px;border-left:2px solid ${isProgress ? "var(--blue)" : "var(--teal)"};
+              margin:3px 0;gap:8px">
+              <div>
+                <div style="font-size:11px;font-weight:500">${esc(item.bibit_nama)}
+                  <span style="font-size:9px;color:var(--text2)">#${item.stamp_ke}</span>
+                </div>
+                <div style="font-size:10px;color:var(--text2)">${item.jumlah} ${esc(item.satuan)}</div>
+              </div>
+              <div style="font-size:11px;font-weight:600;white-space:nowrap">
+                Rp ${parseFloat(item.subtotal).toLocaleString("id-ID")}
+              </div>
+            </div>`;
+                      }
+                    })
+                    .join("");
+
+                  return `<div style="margin-bottom:6px">${groupLabel}${itemRows}</div>`;
+                })
+                .filter(Boolean)
+                .join(
+                  '<hr style="border:none;border-top:0.5px dashed var(--border);margin:6px 0"/>',
+                );
+
+              const detailRows = isReward
+                ? (t.items || [])
+                    .map(
+                      (item) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;
+            font-size:11px;padding:5px 0;border-bottom:0.5px solid var(--border);gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:500">${esc(item.bibit_nama)}</div>
+              <div style="font-size:10px;color:var(--text2);margin-top:1px">
+                ${parseFloat(item.jumlah_jual)} ${esc(item.satuan_jual)} · Gratis
+              </div>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:var(--teal)">🎁 Gratis</span>
+          </div>`,
+                    )
+                    .join("")
+                : groupedHTML ||
+                  '<div style="font-size:11px;color:var(--text2)">-</div>';
 
               return `
     <div style="border:0.5px solid var(--border);border-radius:7px;

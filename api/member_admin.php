@@ -67,6 +67,20 @@ if ($method === 'GET') {
     $stmtCount->execute($params);
     $total = (int)$stmtCount->fetchColumn();
 
+    // Sort
+    $sortKey  = $_GET['sort_key']  ?? 'created_at';
+    $sortAsc  = ($_GET['sort_asc'] ?? '0') === '1';
+    $allowedSort = ['nama', 'cabang_asal_nama', 'total_stamp', 'reward_pending', 'created_at'];
+    if (!in_array($sortKey, $allowedSort)) $sortKey = 'created_at';
+    $sortDir  = $sortAsc ? 'ASC' : 'DESC';
+
+    // reward_pending & cabang_asal_nama are aliases — sort via subquery/join column
+    $orderSQL = match($sortKey) {
+      'cabang_asal_nama' => "c.nama $sortDir",
+      'reward_pending'   => "reward_pending $sortDir",
+      default            => "m.$sortKey $sortDir",
+    };
+
     $offset = ($page - 1) * $per_page;
     $stmt   = $db->prepare("
       SELECT m.*,
@@ -76,7 +90,7 @@ if ($method === 'GET') {
       FROM members m
       JOIN cabang c ON m.cabang_asal_id = c.id
       $whereSQL
-      ORDER BY m.created_at DESC
+      ORDER BY $orderSQL
       LIMIT ? OFFSET ?
     ");
     $stmt->execute(array_merge($params, [$per_page, $offset]));
